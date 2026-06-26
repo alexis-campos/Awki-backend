@@ -6,5 +6,6 @@
         https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
     <include file="classpath:db/changelog/modulos/00_initial_schema.sql"/>
+    <include file="classpath:db/changelog/modulos/01_auth.sql"/>
 
 </databaseChangeLog>

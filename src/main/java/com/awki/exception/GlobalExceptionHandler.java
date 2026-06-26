@@ -40,8 +40,38 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ConsentRequiredException.class)
     public ResponseEntity<ApiResponse<?>> handleConsentRequired(ConsentRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ApiResponse.error("CONSENT_REQUIRED", ex.getMessage(), 422));
+    }
+
+    @ExceptionHandler(AccountDisabledException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccountDisabled(AccountDisabledException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("CONSENT_REQUIRED", ex.getMessage(), 403));
+                .body(ApiResponse.error("ACCOUNT_DISABLED", ex.getMessage(), 403));
+    }
+
+    @ExceptionHandler(CmpAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<?>> handleCmpAlreadyExists(CmpAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("CMP_ALREADY_EXISTS", ex.getMessage(), 409));
+    }
+
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<?>> handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("EMAIL_ALREADY_EXISTS", ex.getMessage(), 409));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiResponse<?>> handleInvalidCredentials(InvalidCredentialsException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("INVALID_CREDENTIALS", ex.getMessage(), 401));
+    }
+
+    @ExceptionHandler(TokenBlacklistedException.class)
+    public ResponseEntity<ApiResponse<?>> handleTokenBlacklisted(TokenBlacklistedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("TOKEN_BLACKLISTED", ex.getMessage(), 401));
     }
 
     @ExceptionHandler(OfflineConflictException.class)

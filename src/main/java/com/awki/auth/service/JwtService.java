@@ -59,6 +59,10 @@ public class JwtService {
         return extractAllClaims(token).get("clinicaId", String.class);
     }
 
+    public Date extractExpiration(String token) {
+        return extractAllClaims(token).getExpiration();
+    }
+
     public boolean isTokenValid(String token) {
         try {
             extractAllClaims(token);
