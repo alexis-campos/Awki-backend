@@ -9,5 +9,6 @@
     <include file="classpath:db/changelog/modulos/01_auth.sql"/>
     <include file="classpath:db/changelog/modulos/10_clinica.sql"/>
     <include file="classpath:db/changelog/modulos/03_embarazo.sql"/>
+    <include file="classpath:db/changelog/modulos/06_riesgo.sql"/>
 
 </databaseChangeLog>

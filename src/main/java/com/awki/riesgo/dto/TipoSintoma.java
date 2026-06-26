@@ -1,0 +1,14 @@
+package com.awki.riesgo.dto;
+
+public enum TipoSintoma {
+    CEFALEA_INTENSA,
+    VISION_BORROSA,
+    TINNITUS,
+    EPIGASTRALGIA,
+    SANGRADO_VAGINAL,
+    AUSENCIA_MOVIMIENTOS_FETALES,
+    CONVULSIONES,
+    PERDIDA_LIQUIDO_AMNIOTICO,
+    CEFALEA,
+    ARDOR_ORINAR
+}
