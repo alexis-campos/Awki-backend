@@ -7,5 +7,6 @@
 
     <include file="classpath:db/changelog/modulos/00_initial_schema.sql"/>
     <include file="classpath:db/changelog/modulos/01_auth.sql"/>
+    <include file="classpath:db/changelog/modulos/10_clinica.sql"/>
 
 </databaseChangeLog>

@@ -22,7 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.awki.auth.dto.MedicoInfoDto;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -150,5 +152,37 @@ public class AuthService {
         if (ttlMillis > 0) {
             redisTemplate.opsForValue().set(BLACKLIST_PREFIX + currentToken, "1", Duration.ofMillis(ttlMillis));
         }
+    }
+
+    public List<MedicoInfoDto> getMedicosByClinicaId(UUID clinicaId) {
+        return medicoRepository.findByClinicaId(clinicaId).stream()
+                .map(m -> new MedicoInfoDto(
+                        m.getId(),
+                        m.getUsuario().getId(),
+                        m.getNombres(),
+                        m.getApellidos(),
+                        m.getCmp(),
+                        m.getEspecialidad(),
+                        m.getUsuario().isActivo()
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public void setMedicoActivo(UUID clinicaId, UUID medicoId, boolean activo) {
+        Medico medico = medicoRepository.findById(medicoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Médico", medicoId.toString()));
+
+        if (!medico.getClinicaId().equals(clinicaId)) {
+            throw new TenantViolationException("El médico no pertenece a esta clínica");
+        }
+
+        Usuario usuario = medico.getUsuario();
+        usuario.setActivo(activo);
+        usuarioRepository.save(usuario);
+    }
+
+    public long countActiveMedicosByClinicaId(UUID clinicaId) {
+        return medicoRepository.countActiveByClinicaId(clinicaId);
     }
 }

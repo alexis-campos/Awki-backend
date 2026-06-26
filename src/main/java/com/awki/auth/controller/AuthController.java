@@ -5,6 +5,8 @@ import com.awki.auth.dto.LoginRequest;
 import com.awki.auth.dto.RegisterMedicoRequest;
 import com.awki.auth.dto.RegisterPacienteRequest;
 import com.awki.auth.service.AuthService;
+import com.awki.auth.service.JwtService;
+import com.awki.clinica.service.ClinicaService;
 import com.awki.common.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,12 +15,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
+    private final ClinicaService clinicaService;
+    private final JwtService jwtService;
 
     @PostMapping("/register/paciente")
     public ResponseEntity<ApiResponse<AuthResponse>> registerPaciente(
@@ -34,8 +40,13 @@ public class AuthController {
             @Valid @RequestBody RegisterMedicoRequest request,
             @RequestHeader("Authorization") String authHeader
     ) {
+        String token = authHeader.substring(7);
+        String clinicaIdStr = jwtService.extractClinicaId(token);
+        if (clinicaIdStr != null) {
+            clinicaService.verificarLimiteMedicos(UUID.fromString(clinicaIdStr));
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(authService.registerMedico(request, authHeader.substring(7))));
+                .body(ApiResponse.ok(authService.registerMedico(request, token)));
     }
 
     @PostMapping("/login")
