@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/awki_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+jwt:
+  secret: awki-dev-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm-padding
+  expiration: 86400000
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.awki: DEBUG
+    org.springframework.security: DEBUG
