@@ -23,7 +23,7 @@
 ### 1. Levantar la infraestructura (PostgreSQL + Redis)
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Esto levanta:
@@ -33,19 +33,19 @@ Esto levanta:
 Verificar que los contenedores están corriendo:
 
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 Para detener los servicios:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 Para detener y eliminar los datos (reset completo):
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ### 2. Correr la aplicación
