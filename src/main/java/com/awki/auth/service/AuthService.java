@@ -185,4 +185,10 @@ public class AuthService {
     public long countActiveMedicosByClinicaId(UUID clinicaId) {
         return medicoRepository.countActiveByClinicaId(clinicaId);
     }
+
+    public LocalDate getFechaNacimientoPaciente(UUID pacienteId) {
+        return pacienteRepository.findById(pacienteId)
+                .map(Paciente::getFechaNacimiento)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
+    }
 }
