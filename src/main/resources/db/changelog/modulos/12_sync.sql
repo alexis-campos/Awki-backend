@@ -17,6 +17,7 @@ CREATE TABLE sync_items_procesados (
     paciente_id         UUID            NOT NULL REFERENCES pacientes(id),
     offline_timestamp   TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     created_at          TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_device_paciente_ts UNIQUE (device_id, paciente_id, offline_timestamp)
 );
 
