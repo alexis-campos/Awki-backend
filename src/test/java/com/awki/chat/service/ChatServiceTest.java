@@ -7,7 +7,7 @@ import com.awki.chat.entity.ResumenClinico;
 import com.awki.chat.repository.MensajeChatRepository;
 import com.awki.chat.repository.ResumenClinicoRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ class ChatServiceTest {
     private ResumenClinicoRepository resumenClinicoRepository;
 
     @Mock
-    private EmbarazoRepository embarazoRepository;
+    private EmbarazoService embarazoService;
 
     @Mock
     private AuthService authService;
@@ -98,7 +98,7 @@ class ChatServiceTest {
         ChatMensajeRequest request = new ChatMensajeRequest(pregnancyId, "Tengo sangrado");
         UsuarioAutenticado usuario = new UsuarioAutenticado(patientId, "PACIENTE", clinicaId);
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(geminiClient.generarContenido(anyString())).thenReturn(Optional.of("Signo de alarma detectado"));
         when(mensajeChatRepository.save(any(MensajeChat.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -120,7 +120,7 @@ class ChatServiceTest {
         ChatMensajeRequest request = new ChatMensajeRequest(pregnancyId, "consulta normal");
         UsuarioAutenticado usuario = new UsuarioAutenticado(patientId, "PACIENTE", clinicaId);
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(semanticCacheService.buscarEnCache(anyString())).thenReturn(Optional.of("Respuesta guardada en caché"));
         when(mensajeChatRepository.save(any(MensajeChat.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -137,7 +137,7 @@ class ChatServiceTest {
         ChatMensajeRequest request = new ChatMensajeRequest(pregnancyId, "consulta normal");
         UsuarioAutenticado usuario = new UsuarioAutenticado(patientId, "PACIENTE", clinicaId);
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(semanticCacheService.buscarEnCache(anyString())).thenReturn(Optional.empty());
         when(geminiClient.generarContenido(anyString())).thenReturn(Optional.empty()); // Falla
         when(mensajeChatRepository.save(any(MensajeChat.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -154,7 +154,7 @@ class ChatServiceTest {
         UsuarioAutenticado usuario = new UsuarioAutenticado(patientId, "PACIENTE", clinicaId);
         Page<MensajeChat> page = new PageImpl<>(Collections.emptyList());
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(mensajeChatRepository.findByEmbarazoIdOrderByCreatedAtDescIdDesc(eq(pregnancyId), any(Pageable.class))).thenReturn(page);
 
         Page<MensajeChatResponse> response = chatService.obtenerHistorial(pregnancyId, 0, 20, usuario);
@@ -165,7 +165,7 @@ class ChatServiceTest {
     void obtenerHistorial_ForbiddenForOtherPatient() {
         UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "PACIENTE", clinicaId);
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
 
         assertThrows(BusinessRuleException.class, () ->
                 chatService.obtenerHistorial(pregnancyId, 0, 20, usuario)
@@ -189,7 +189,7 @@ class ChatServiceTest {
         resumen.setContenidoResumen("Resumen guardado");
         resumen.setGeneradoPorModelo("Gemini API");
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(Optional.of(clinicaId));
         when(resumenClinicoRepository.findById(pregnancyId)).thenReturn(Optional.of(resumen));
 
@@ -203,7 +203,7 @@ class ChatServiceTest {
     void obtenerResumenClinico_ForbiddenForMedicoOfDifferentClinic() {
         UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "MEDICO", UUID.randomUUID()); // Clínica distinta
 
-        when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(pregnancyId)).thenReturn(embarazo);
         when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(Optional.of(clinicaId));
 
         assertThrows(BusinessRuleException.class, () ->

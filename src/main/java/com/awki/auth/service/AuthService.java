@@ -207,6 +207,29 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente para usuario", usuarioId.toString()));
     }
 
+    public Optional<UUID> tryGetPacienteIdByUsuarioId(UUID userId) {
+        return pacienteRepository.findByUsuario_Id(userId).map(Paciente::getId);
+    }
+
+    public Paciente getPacienteEntityByUsuarioId(UUID usuarioId) {
+        return pacienteRepository.findByUsuario_Id(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente para usuario", usuarioId.toString()));
+    }
+
+    public Paciente getPacienteEntityById(UUID pacienteId) {
+        return pacienteRepository.findById(pacienteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
+    }
+
+    public Optional<Medico> getMedicoEntityById(UUID medicoId) {
+        return medicoRepository.findById(medicoId);
+    }
+
+    public Medico getMedicoEntityByUsuarioId(UUID usuarioId) {
+        return medicoRepository.findByUsuario_Id(usuarioId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medico para usuario", usuarioId.toString()));
+    }
+
     public UUID getMedicoIdByUsuarioId(UUID usuarioId) {
         return medicoRepository.findByUsuario_Id(usuarioId)
                 .map(Medico::getId)

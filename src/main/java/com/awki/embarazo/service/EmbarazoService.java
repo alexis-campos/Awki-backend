@@ -1,7 +1,5 @@
 package com.awki.embarazo.service;
 
-import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.PacienteRepository;
 import com.awki.auth.service.AuthService;
 import com.awki.common.enums.EstadoEmbarazo;
 import com.awki.embarazo.dto.*;
@@ -27,18 +25,14 @@ public class EmbarazoService {
 
     private final EmbarazoRepository embarazoRepository;
     private final AntecedentesRepository antecedentesRepository;
-    private final PacienteRepository pacienteRepository;
     private final AuthService authService;
     private final VinculacionService vinculacionService;
 
     @Transactional
     public EmbarazoResponse crearEmbarazo(EmbarazoRequest request) {
         // Resolver pacienteId real si se proporcionó un usuarioId
-        UUID targetPacienteId = request.pacienteId();
-        Optional<Paciente> pacienteOpt = pacienteRepository.findByUsuario_Id(targetPacienteId);
-        if (pacienteOpt.isPresent()) {
-            targetPacienteId = pacienteOpt.get().getId();
-        }
+        UUID targetPacienteId = authService.tryGetPacienteIdByUsuarioId(request.pacienteId())
+                .orElse(request.pacienteId());
 
         // Verificar si la paciente ya tiene un embarazo activo
         final UUID finalPacienteId = targetPacienteId;
@@ -93,12 +87,8 @@ public class EmbarazoService {
     }
 
     public EmbarazoResponse obtenerEmbarazoActivo(UUID pacienteId) {
-        UUID targetPacienteId = pacienteId;
-        Optional<Paciente> pacienteOpt = pacienteRepository.findByUsuario_Id(pacienteId);
-        if (pacienteOpt.isPresent()) {
-            targetPacienteId = pacienteOpt.get().getId();
-        }
-
+        UUID targetPacienteId = authService.tryGetPacienteIdByUsuarioId(pacienteId)
+                .orElse(pacienteId);
         final UUID finalPacienteId = targetPacienteId;
         Embarazo embarazo = embarazoRepository.findByPacienteIdAndEstado(finalPacienteId, EstadoEmbarazo.ACTIVO)
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo activo", finalPacienteId.toString()));
@@ -165,6 +155,11 @@ public class EmbarazoService {
         AntecedentesClinicos antecedentes = antecedentesRepository.findById(embarazoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Antecedentes clínicos", embarazoId.toString()));
         return mapToAntecedentesResponse(antecedentes);
+    }
+
+    public Embarazo getEmbarazoEntityById(UUID id) {
+        return embarazoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", id.toString()));
     }
 
     private EmbarazoResponse mapToEmbarazoResponse(Embarazo embarazo) {

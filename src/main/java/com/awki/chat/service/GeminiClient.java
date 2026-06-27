@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.*;
@@ -58,7 +60,7 @@ public class GeminiClient {
             // POST /v1beta/models/{model}:generateContent
             String uri = "/v1beta/models/" + geminiProperties.getModel() + ":generateContent";
 
-            // Ejecutar llamada
+            // Ejecutar llamada con retry automático en caso de rate limit (429)
             GeminiResponse response = webClient.post()
                     .uri(uri)
                     .header("x-goog-api-key", geminiProperties.getApiKey())
@@ -67,6 +69,11 @@ public class GeminiClient {
                     .retrieve()
                     .bodyToMono(GeminiResponse.class)
                     .timeout(Duration.ofSeconds(geminiProperties.getTimeoutSeconds()))
+                    .retryWhen(Retry.fixedDelay(2, java.time.Duration.ofSeconds(3))
+                            .filter(t -> t instanceof WebClientResponseException wce &&
+                                         wce.getStatusCode().value() == 429)
+                            .doBeforeRetry(s -> log.warn("[GeminiClient] Rate limit (429). Reintentando en 3s ({}/2)...",
+                                    s.totalRetriesInARow() + 1)))
                     .block();
 
             if (response != null && response.candidates() != null && !response.candidates().isEmpty()) {

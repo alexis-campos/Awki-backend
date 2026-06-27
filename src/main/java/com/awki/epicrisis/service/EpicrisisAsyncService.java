@@ -1,21 +1,19 @@
 package com.awki.epicrisis.service;
 
-import com.awki.alerta.entity.Alerta;
-import com.awki.alerta.repository.AlertaRepository;
+import com.awki.alerta.service.AlertaService;
 import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.PacienteRepository;
-import com.awki.chat.entity.ResumenClinico;
-import com.awki.chat.repository.ResumenClinicoRepository;
-import com.awki.chat.service.GeminiClient;
+import com.awki.auth.service.AuthService;
+import com.awki.chat.service.ChatService;
 import com.awki.embarazo.entity.AntecedentesClinicos;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.epicrisis.entity.Epicrisis;
 import com.awki.epicrisis.entity.EpicrisisJob;
 import com.awki.epicrisis.entity.EstadoJob;
 import com.awki.epicrisis.repository.EpicrisisJobRepository;
 import com.awki.epicrisis.repository.EpicrisisRepository;
 import com.awki.epicrisis.util.PdfGeneratorHelper;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,10 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -37,15 +32,14 @@ public class EpicrisisAsyncService {
 
     private final EpicrisisJobRepository jobRepository;
     private final EpicrisisRepository epicrisisRepository;
-    private final EmbarazoRepository embarazoRepository;
-    private final PacienteRepository pacienteRepository;
-    private final AlertaRepository alertaRepository;
-    private final ResumenClinicoRepository resumenClinicoRepository;
-    private final GeminiClient geminiClient;
+    private final AuthService authService;
+    private final EmbarazoService embarazoService;
+    private final AlertaService alertaService;
+    private final ChatService chatService;
     private final DocumentStorageService storageService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
-    @Async
+    @Async("taskExecutor")
     @Transactional
     public void generarEpicrisisAsync(
             UUID jobId,
@@ -64,47 +58,34 @@ public class EpicrisisAsyncService {
         }
 
         try {
-            // 1. Obtener datos clínicos consolidados
-            Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                    .orElseThrow(() -> new IllegalArgumentException("Embarazo no encontrado"));
+            Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
-            Paciente paciente = pacienteRepository.findById(embarazo.getPacienteId())
-                    .orElseThrow(() -> new IllegalArgumentException("Paciente no encontrado"));
+            Paciente paciente = authService.getPacienteEntityById(embarazo.getPacienteId());
 
             String pacienteNombre = paciente.getNombres() + " " + paciente.getApellidos();
             long semanas = ChronoUnit.WEEKS.between(embarazo.getFechaUltimaMenstruacion(), LocalDate.now());
             String semanasGestacion = semanas + " semanas (FUM: " + embarazo.getFechaUltimaMenstruacion() + ")";
 
-            // Antecedentes
             String antecedentesStr = obtenerAntecedentesFormateados(embarazo.getAntecedentes());
 
-            // Resumen de chat
-            Optional<ResumenClinico> resumenOpt = resumenClinicoRepository.findById(embarazoId);
-            String resumenChat = resumenOpt.map(ResumenClinico::getContenidoResumen)
+            String resumenChat = chatService.getContenidoResumen(embarazoId)
                     .orElse("No se registran interacciones previas en el chat de seguimiento.");
 
-            // Alertas
-            List<Alerta> alertas = alertaRepository.findByEmbarazo_Id(embarazoId);
-            String alertasStr = alertas.isEmpty() ? "Sin alertas clínicas registradas." :
-                    alertas.stream()
-                            .map(a -> "- " + a.getTipoAlerta() + " (" + a.getNivelUrgencia() + "): " + a.getDescripcion())
-                            .collect(Collectors.joining("\n"));
+            String alertasStr = alertaService.getAlertasFormatadasParaEpicrisis(embarazoId);
 
-            // 2. Intentar llamar a Gemini API con fallback
             String prompt = construirPrompt(pacienteNombre, semanasGestacion, motivoDerivacion, observacionesAdicionales, antecedentesStr, resumenChat, alertasStr);
-            
-            // TODO: En un refactor posterior, desacoplar GeminiClient en una abstracción LlmClient común
-            Optional<String> respuestaOpt = geminiClient.generarContenido(prompt, 0.3, 2000);
-            
-            String jsonReport = null;
+
+            // GeminiClient es accedido a través de ChatService para no violar límites de módulo
+            // TODO: extraer LlmClient como abstracción común cuando se desacople el módulo chat
             String resumenIa = null;
             String sintesisClinica = null;
             String conclusiones = null;
             boolean generadoSinIa = false;
 
-            if (respuestaOpt.isPresent()) {
-                String rawText = respuestaOpt.get().trim();
-                // Limpiar posibles bloques markdown ```json
+            var geminiRespuestaOpt = chatService.generarContenidoConGemini(prompt, 0.3, 2000);
+
+            if (geminiRespuestaOpt.isPresent()) {
+                String rawText = geminiRespuestaOpt.get().trim();
                 if (rawText.startsWith("```")) {
                     rawText = rawText.replaceAll("(?s)^```(?:json)?|```$", "").trim();
                 }
@@ -113,13 +94,11 @@ public class EpicrisisAsyncService {
                     resumenIa = parsed.resumen_ia();
                     sintesisClinica = parsed.sintesis_clinica();
                     conclusiones = parsed.conclusiones();
-                    jsonReport = rawText;
                 } catch (Exception ex) {
                     log.warn("Gemini retornó un JSON inválido, activando fallback local: {}", ex.getMessage());
                 }
             }
 
-            // Activar Fallback local si la llamada a Gemini falló o el JSON fue inválido
             if (resumenIa == null) {
                 generadoSinIa = true;
                 resumenIa = "Generación de IA no disponible temporalmente. Se consolidó este informe con los datos clínicos almacenados en el sistema.";
@@ -127,20 +106,11 @@ public class EpicrisisAsyncService {
                         semanas, antecedentesStr, resumenChat);
                 conclusiones = String.format("Ingreso a labor de parto. Motivo de derivación: %s. Alertas clínicas reportadas previamente: %s.",
                         motivoDerivacion, alertasStr);
-                
-                GeminiEpicrisisJson fallbackJson = new GeminiEpicrisisJson(resumenIa, sintesisClinica, conclusiones);
-                jsonReport = objectMapper.writeValueAsString(fallbackJson);
             }
 
-            // 3. Agregar flag de generación sin IA al contenido JSON guardado en base de datos
-            String contenidoJsonFinal = jsonReport;
-            if (generadoSinIa) {
-                contenidoJsonFinal = contenidoJsonFinal.substring(0, contenidoJsonFinal.length() - 1) + ", \"generado_sin_ia\": true}";
-            } else {
-                contenidoJsonFinal = contenidoJsonFinal.substring(0, contenidoJsonFinal.length() - 1) + ", \"generado_sin_ia\": false}";
-            }
+            GeminiEpicrisisJson finalJson = new GeminiEpicrisisJson(resumenIa, sintesisClinica, conclusiones, generadoSinIa);
+            String contenidoJsonFinal = objectMapper.writeValueAsString(finalJson);
 
-            // 4. Generar el documento PDF físico
             byte[] pdfBytes = PdfGeneratorHelper.generarPdfEpicrisis(
                     pacienteNombre,
                     semanasGestacion,
@@ -151,11 +121,9 @@ public class EpicrisisAsyncService {
                     conclusiones
             );
 
-            // 5. Almacenar el PDF en el proveedor
             String uniqueFileName = "epicrisis_" + embarazoId + "_" + UUID.randomUUID() + ".pdf";
             String savedFileName = storageService.guardarDocumento(pdfBytes, uniqueFileName);
 
-            // 6. Persistir el registro final en Epicrisis
             Epicrisis epicrisis = new Epicrisis();
             epicrisis.setEmbarazoId(embarazoId);
             epicrisis.setMedicoId(medicoId);
@@ -163,10 +131,9 @@ public class EpicrisisAsyncService {
             epicrisis.setMotivoDerivacion(motivoDerivacion);
             epicrisis.setObservacionesAdicionales(observacionesAdicionales);
             epicrisis.setContenidoJson(contenidoJsonFinal);
-            epicrisis.setUrlPdf(savedFileName); // Guardamos el nombre del archivo para resolución interna
+            epicrisis.setUrlPdf(savedFileName);
             Epicrisis guardada = epicrisisRepository.save(epicrisis);
 
-            // 7. Completar el Job
             job.setEstado(EstadoJob.COMPLETADO);
             job.setEpicrisis(guardada);
             jobRepository.save(job);
@@ -223,6 +190,11 @@ public class EpicrisisAsyncService {
                 "}";
     }
 
-    // Record interno para mapear y deserializar la respuesta del LLM
-    private record GeminiEpicrisisJson(String resumen_ia, String sintesis_clinica, String conclusiones) {}
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record GeminiEpicrisisJson(
+            String resumen_ia,
+            String sintesis_clinica,
+            String conclusiones,
+            Boolean generado_sin_ia
+    ) {}
 }

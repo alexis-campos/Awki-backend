@@ -8,7 +8,7 @@ import com.awki.chat.entity.ResumenClinico;
 import com.awki.chat.repository.MensajeChatRepository;
 import com.awki.chat.repository.ResumenClinicoRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.common.enums.EstadoEmbarazo;
 import com.awki.exception.BusinessRuleException;
 import com.awki.exception.ResourceNotFoundException;
@@ -25,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -36,13 +37,13 @@ public class ChatService {
 
     private final MensajeChatRepository mensajeChatRepository;
     private final ResumenClinicoRepository resumenClinicoRepository;
-    private final EmbarazoRepository embarazoRepository;
+    private final EmbarazoService embarazoService;
     private final AuthService authService;
     private final GeminiClient geminiClient;
     private final SemanticCacheService semanticCacheService;
     private final ChatAsyncService chatAsyncService;
 
-    private static final String GEMINI_SYSTEM_PROMPT = 
+    private static final String GEMINI_SYSTEM_PROMPT =
             "Eres Awki, un asistente prenatal de apoyo para gestantes. Responde en español claro, breve, cálido y responsable. "
             + "No das diagnósticos definitivos, no reemplazas a un médico y no inventas información clínica. "
             + "Si el mensaje menciona síntomas de alarma como sangrado, pérdida de líquido, convulsiones, fiebre alta, "
@@ -53,16 +54,12 @@ public class ChatService {
 
     @Transactional
     public ChatMensajeResponse enviarMensaje(ChatMensajeRequest request, UsuarioAutenticado usuario) {
-        // 1. Validar rol PACIENTE
         if (!"PACIENTE".equals(usuario.rol())) {
             throw new BusinessRuleException("FORBIDDEN", "Solo las pacientes pueden enviar mensajes al chat");
         }
 
-        // 2. Validar que el embarazo exista
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
-        // 3. Validar que pertenezca a la paciente autenticada
         UUID pacienteId = authService.getPacienteIdByUsuarioId(usuario.id());
         if (!embarazo.getPacienteId().equals(pacienteId)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
@@ -71,7 +68,6 @@ public class ChatService {
         String contenido = request.contenido().trim();
         boolean alarmaProbable = detectarAlarmaProbable(contenido);
 
-        // 4. Si no es alarma, intentar buscar en caché semántica
         if (!alarmaProbable) {
             var cacheOpt = semanticCacheService.buscarEnCache(contenido);
             if (cacheOpt.isPresent()) {
@@ -83,7 +79,6 @@ public class ChatService {
                 MensajeChat mensajeIa = guardarMensaje(embarazo, RolMensajeChat.IA, respuestaCache, false, true, false);
                 mensajeChatRepository.saveAndFlush(mensajeIa);
 
-                // Hilos asíncronos para motor de riesgo y alertas
                 chatAsyncService.analizarRiesgoAsync(embarazo.getId(), contenido, false);
                 chatAsyncService.crearAlertaSiCorrespondeAsync(embarazo.getId(), contenido, false);
 
@@ -99,14 +94,13 @@ public class ChatService {
             }
         }
 
-        // 5. Construcción del Prompt
         long semanas = ChronoUnit.WEEKS.between(embarazo.getFechaUltimaMenstruacion(), LocalDate.now());
         String contextoMinimo = String.format(
                 "Paciente en la semana %d de gestación. Embarazo múltiple: %b. Gestas previas: %d, Partos: %d, Cesáreas: %d.",
                 semanas, embarazo.isEmbarazoMultiple(), embarazo.getNumeroGestacion(), embarazo.getNumeroPartos(), embarazo.getNumeroCesareas()
         );
 
-        String prompt = GEMINI_SYSTEM_PROMPT + "\n\nContexto clínico de la gestante:\n" + contextoMinimo 
+        String prompt = GEMINI_SYSTEM_PROMPT + "\n\nContexto clínico de la gestante:\n" + contextoMinimo
                 + "\n\nConsulta de la paciente:\n" + contenido;
 
         String respuestaIa;
@@ -126,19 +120,16 @@ public class ChatService {
             fallbackUsado = true;
         }
 
-        // 6. Guardar en base de datos de forma estrictamente secuencial
         MensajeChat mensajePaciente = guardarMensaje(embarazo, RolMensajeChat.PACIENTE, contenido, alarmaProbable, false, fallbackUsado);
         mensajeChatRepository.saveAndFlush(mensajePaciente);
         try { Thread.sleep(20); } catch (InterruptedException ignored) {}
         MensajeChat mensajeIa = guardarMensaje(embarazo, RolMensajeChat.IA, respuestaIa, alarmaProbable, false, fallbackUsado);
         mensajeChatRepository.saveAndFlush(mensajeIa);
 
-        // 7. Guardar en caché si es seguro
         if (!alarmaProbable && !fallbackUsado) {
             semanticCacheService.guardarEnCache(contenido, respuestaIa);
         }
 
-        // 8. Tareas asíncronas en segundo plano
         chatAsyncService.analizarRiesgoAsync(embarazo.getId(), contenido, alarmaProbable);
         chatAsyncService.crearAlertaSiCorrespondeAsync(embarazo.getId(), contenido, alarmaProbable);
 
@@ -154,15 +145,12 @@ public class ChatService {
     }
 
     public Page<MensajeChatResponse> obtenerHistorial(UUID embarazoId, int page, int size, UsuarioAutenticado usuario) {
-        // Validar rol PACIENTE
         if (!"PACIENTE".equals(usuario.rol())) {
             throw new BusinessRuleException("FORBIDDEN", "Solo las pacientes pueden consultar su historial detallado de chat");
         }
 
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
-        // Validar dueño del embarazo
         UUID pacienteIdHistorial = authService.getPacienteIdByUsuarioId(usuario.id());
         if (!embarazo.getPacienteId().equals(pacienteIdHistorial)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
@@ -185,16 +173,12 @@ public class ChatService {
 
     @Transactional
     public ResumenClinicoResponse obtenerResumenClinico(UUID embarazoId, UsuarioAutenticado usuario) {
-        // Validar rol MEDICO o ADMIN_CLINICA
         if (!"MEDICO".equals(usuario.rol()) && !"ADMIN_CLINICA".equals(usuario.rol())) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes permisos para ver el resumen clínico");
         }
 
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
-        // Validar multi-tenant: si la paciente pertenece a una clínica, debe coincidir.
-        // Si es standalone (sin clínica), solo el médico asignado al embarazo puede acceder.
         var pacienteClinicaIdOpt = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
         if (pacienteClinicaIdOpt.isPresent()) {
             if (!pacienteClinicaIdOpt.get().equals(usuario.clinicaId())) {
@@ -207,17 +191,15 @@ public class ChatService {
             }
         }
 
-        // Buscar resumen existente
         var resumenOpt = resumenClinicoRepository.findById(embarazoId);
         if (resumenOpt.isPresent()) {
             ResumenClinico rc = resumenOpt.get();
             return new ResumenClinicoResponse(rc.getEmbarazoId(), rc.getContenidoResumen(), rc.getGeneradoPorModelo(), rc.getUpdatedAt());
         }
 
-        // Si no existe, generarlo síncronamente de los últimos 50 mensajes por primera vez
         log.info("[ChatService] Generando primer resumen clínico para embarazo: {}", embarazoId);
         List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDescIdDesc(embarazoId);
-        
+
         String contenidoResumen;
         String modelo = "Gemini API";
 
@@ -263,25 +245,29 @@ public class ChatService {
     }
 
     public void regenerarResumen(UUID embarazoId, UsuarioAutenticado usuario) {
-        // Validar rol MEDICO o ADMIN_CLINICA
         if (!"MEDICO".equals(usuario.rol()) && !"ADMIN_CLINICA".equals(usuario.rol())) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes permisos para regenerar el resumen clínico");
         }
 
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
-        // Validar multi-tenant: si la paciente pertenece a una clínica, debe coincidir.
         var pacienteClinicaIdOpt2 = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
         if (pacienteClinicaIdOpt2.isPresent() && !pacienteClinicaIdOpt2.get().equals(usuario.clinicaId())) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a los datos de esta paciente");
         }
 
-        // Obtener los últimos 50 mensajes
         List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDescIdDesc(embarazoId);
 
-        // Llamar asíncronamente al servicio de asincronía
-        chatAsyncService.regenerarResumenAsync(embarazoId, mensajes, resumenClinicoRepository, embarazo, geminiClient);
+        chatAsyncService.regenerarResumenAsync(embarazoId, mensajes, embarazo);
+    }
+
+    public Optional<String> getContenidoResumen(UUID embarazoId) {
+        return resumenClinicoRepository.findById(embarazoId)
+                .map(ResumenClinico::getContenidoResumen);
+    }
+
+    public Optional<String> generarContenidoConGemini(String prompt, double temperature, int maxOutputTokens) {
+        return geminiClient.generarContenido(prompt, temperature, maxOutputTokens);
     }
 
     public boolean detectarAlarmaProbable(String contenido) {
@@ -329,7 +315,7 @@ public class ChatService {
         }
 
         String lower = contenido.toLowerCase();
-        if (lower.contains("triste") || lower.contains("ansied") || lower.contains("miedo") 
+        if (lower.contains("triste") || lower.contains("ansied") || lower.contains("miedo")
                 || lower.contains("sola") || lower.contains("depre") || lower.contains("llor")) {
             return "Siento que estés pasando por esto. Trata de respirar con calma y busca apoyo de alguien cercano. Si te sientes en peligro o muy mal, contacta a tu médico o a un servicio de emergencia.";
         }
@@ -339,8 +325,7 @@ public class ChatService {
 
     @Transactional
     public MensajeChat guardarMensajeOffline(UUID embarazoId, String contenido, LocalDateTime offlineTimestamp, String deviceId) {
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
         boolean alarmaProbable = detectarAlarmaProbable(contenido);
         MensajeChat mensaje = new MensajeChat();
