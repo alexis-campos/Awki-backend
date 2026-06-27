@@ -11,5 +11,6 @@
     <include file="classpath:db/changelog/modulos/03_embarazo.sql"/>
     <include file="classpath:db/changelog/modulos/06_riesgo.sql"/>
     <include file="classpath:db/changelog/modulos/02_vinculacion.sql"/>
+    <include file="classpath:db/changelog/modulos/05_chat.sql"/>
 
 </databaseChangeLog>

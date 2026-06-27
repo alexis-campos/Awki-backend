@@ -191,4 +191,11 @@ public class AuthService {
                 .map(Paciente::getFechaNacimiento)
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
     }
+
+    public UUID getClinicaIdByPacienteId(UUID pacienteId) {
+        return pacienteRepository.findById(pacienteId)
+                .map(Paciente::getUsuario)
+                .map(Usuario::getClinicaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
+    }
 }

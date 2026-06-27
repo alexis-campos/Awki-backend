@@ -25,3 +25,10 @@ logging:
   level:
     com.awki: DEBUG
     org.springframework.security: DEBUG
+
+gemini:
+  api-key: ${GEMINI_API_KEY:mock-key}
+  api-url: https://generativelanguage.googleapis.com
+  model: gemini-2.5-flash-lite
+  timeout-seconds: 8
+  mock-enabled: true
