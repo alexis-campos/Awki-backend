@@ -1,5 +1,7 @@
 package com.awki.embarazo.service;
 
+import com.awki.auth.entity.Paciente;
+import com.awki.auth.repository.PacienteRepository;
 import com.awki.auth.service.AuthService;
 import com.awki.common.enums.EstadoEmbarazo;
 import com.awki.embarazo.dto.*;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -24,13 +27,22 @@ public class EmbarazoService {
 
     private final EmbarazoRepository embarazoRepository;
     private final AntecedentesRepository antecedentesRepository;
+    private final PacienteRepository pacienteRepository;
     private final AuthService authService;
     private final VinculacionService vinculacionService;
 
     @Transactional
     public EmbarazoResponse crearEmbarazo(EmbarazoRequest request) {
+        // Resolver pacienteId real si se proporcionó un usuarioId
+        UUID targetPacienteId = request.pacienteId();
+        Optional<Paciente> pacienteOpt = pacienteRepository.findByUsuario_Id(targetPacienteId);
+        if (pacienteOpt.isPresent()) {
+            targetPacienteId = pacienteOpt.get().getId();
+        }
+
         // Verificar si la paciente ya tiene un embarazo activo
-        embarazoRepository.findByPacienteIdAndEstado(request.pacienteId(), EstadoEmbarazo.ACTIVO)
+        final UUID finalPacienteId = targetPacienteId;
+        embarazoRepository.findByPacienteIdAndEstado(targetPacienteId, EstadoEmbarazo.ACTIVO)
                 .ifPresent(e -> {
                     throw new BusinessRuleException("ACTIVE_PREGNANCY_EXISTS", "La paciente ya tiene un embarazo activo registrado");
                 });
@@ -45,7 +57,7 @@ public class EmbarazoService {
         LocalDate fpp = request.fechaUltimaMenstruacion().plusDays(280);
 
         Embarazo embarazo = new Embarazo();
-        embarazo.setPacienteId(request.pacienteId());
+        embarazo.setPacienteId(targetPacienteId);
         embarazo.setFechaUltimaMenstruacion(request.fechaUltimaMenstruacion());
         embarazo.setFechaProbableParto(fpp);
         embarazo.setFechaProbablePartoEco(request.fechaProbablePartoEco());
@@ -58,13 +70,13 @@ public class EmbarazoService {
         embarazo.setEstado(EstadoEmbarazo.ACTIVO);
 
         // Obtener médico vinculado si está en modo VINCULADO (Lógica Módulo 2)
-        vinculacionService.obtenerMedicoVinculadoActivo(request.pacienteId())
+        vinculacionService.obtenerMedicoVinculadoActivo(targetPacienteId)
                 .ifPresent(embarazo::setMedicoId);
 
         embarazo = embarazoRepository.save(embarazo);
 
         // Calcular edad materna de riesgo (edad < 15 o > 35)
-        LocalDate fechaNacimiento = authService.getFechaNacimientoPaciente(request.pacienteId());
+        LocalDate fechaNacimiento = authService.getFechaNacimientoPaciente(targetPacienteId);
         long edad = ChronoUnit.YEARS.between(fechaNacimiento, hoy);
         boolean edadMaternaRiesgo = edad < 15 || edad > 35;
 
@@ -81,8 +93,15 @@ public class EmbarazoService {
     }
 
     public EmbarazoResponse obtenerEmbarazoActivo(UUID pacienteId) {
-        Embarazo embarazo = embarazoRepository.findByPacienteIdAndEstado(pacienteId, EstadoEmbarazo.ACTIVO)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo activo", pacienteId.toString()));
+        UUID targetPacienteId = pacienteId;
+        Optional<Paciente> pacienteOpt = pacienteRepository.findByUsuario_Id(pacienteId);
+        if (pacienteOpt.isPresent()) {
+            targetPacienteId = pacienteOpt.get().getId();
+        }
+
+        final UUID finalPacienteId = targetPacienteId;
+        Embarazo embarazo = embarazoRepository.findByPacienteIdAndEstado(finalPacienteId, EstadoEmbarazo.ACTIVO)
+                .orElseThrow(() -> new ResourceNotFoundException("Embarazo activo", finalPacienteId.toString()));
         return mapToEmbarazoResponse(embarazo);
     }
 
