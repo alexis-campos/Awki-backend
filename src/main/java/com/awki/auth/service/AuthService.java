@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import com.awki.auth.dto.MedicoInfoDto;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -192,10 +193,21 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
     }
 
-    public UUID getClinicaIdByPacienteId(UUID pacienteId) {
+    public Optional<UUID> getClinicaIdByPacienteId(UUID pacienteId) {
         return pacienteRepository.findById(pacienteId)
                 .map(Paciente::getUsuario)
-                .map(Usuario::getClinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", pacienteId.toString()));
+                .map(Usuario::getClinicaId);
+    }
+
+    public UUID getPacienteIdByUsuarioId(UUID usuarioId) {
+        return pacienteRepository.findByUsuario_Id(usuarioId)
+                .map(Paciente::getId)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente para usuario", usuarioId.toString()));
+    }
+
+    public UUID getMedicoIdByUsuarioId(UUID usuarioId) {
+        return medicoRepository.findByUsuario_Id(usuarioId)
+                .map(Medico::getId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medico para usuario", usuarioId.toString()));
     }
 }

@@ -66,9 +66,7 @@ public class AlertaService {
             medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
         }
 
-        UUID clinicaId = paciente.getUsuario().getClinicaId();
-        Clinica clinica = clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        Clinica clinica = resolverClinica(paciente, medico);
 
         Alerta alerta = new Alerta();
         alerta.setEmbarazo(embarazo);
@@ -121,9 +119,7 @@ public class AlertaService {
             medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
         }
 
-        UUID clinicaId = paciente.getUsuario().getClinicaId();
-        Clinica clinica = clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        Clinica clinica = resolverClinica(paciente, medico);
 
         Alerta alerta = new Alerta();
         alerta.setEmbarazo(embarazo);
@@ -231,9 +227,7 @@ public class AlertaService {
             medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
         }
 
-        UUID clinicaId = paciente.getUsuario().getClinicaId();
-        Clinica clinica = clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        Clinica clinica = resolverClinica(paciente, medico);
 
         Alerta alerta = new Alerta();
         alerta.setEmbarazo(embarazo);
@@ -282,5 +276,18 @@ public class AlertaService {
                 alerta.getMensajeLibre(),
                 alerta.getCreatedAt()
         );
+    }
+
+    private Clinica resolverClinica(Paciente paciente, Medico medico) {
+        UUID rawId = paciente.getUsuario().getClinicaId();
+        if (rawId == null && medico != null) {
+            rawId = medico.getClinicaId();
+        }
+        if (rawId == null) {
+            throw new ResourceNotFoundException("Clinica", "no se encontró clínica asociada a la paciente ni al médico");
+        }
+        final UUID clinicaId = rawId;
+        return clinicaRepository.findById(clinicaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
     }
 }

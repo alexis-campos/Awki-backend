@@ -37,7 +37,6 @@ public class EpicrisisService {
     private final EpicrisisAsyncService asyncService;
     private final DocumentStorageService storageService;
 
-    @Transactional
     public EpicrisisJobResponse iniciarGeneracion(EpicrisisGenerarRequest request, UsuarioAutenticado user) {
         log.info("Solicitud de generación de epicrisis recibida del médico: {} para embarazo: {}", user.id(), request.embarazoId());
 
@@ -55,22 +54,24 @@ public class EpicrisisService {
 
         UUID pacienteClinicaId = paciente.getUsuario().getClinicaId();
 
-        if (docClinicaId == null || !docClinicaId.equals(pacienteClinicaId)) {
+        boolean tieneAcceso;
+        if (pacienteClinicaId != null) {
+            tieneAcceso = pacienteClinicaId.equals(docClinicaId);
+        } else {
+            // Paciente standalone: solo el médico vinculado al embarazo puede generar epicrisis
+            tieneAcceso = medico.getId().equals(embarazo.getMedicoId());
+        }
+
+        if (!tieneAcceso) {
             log.warn("Violación de tenencia: Médico {} (Clínica {}) intentó generar epicrisis para Paciente {} (Clínica {})",
                     medico.getId(), docClinicaId, paciente.getId(), pacienteClinicaId);
             throw new TenantViolationException("El embarazo no pertenece a la misma clínica que el médico");
         }
 
-        // 3. Crear el registro del Job
-        EpicrisisJob job = new EpicrisisJob();
-        job.setEmbarazoId(request.embarazoId());
-        job.setMedicoId(medico.getId());
-        job.setClinicaId(docClinicaId);
-        job.setEstado(EstadoJob.PROCESANDO);
+        // 3. Persistir el Job en su propia transacción para garantizar commit antes del async
+        EpicrisisJob guardado = crearJobTransaccional(request.embarazoId(), medico.getId(), docClinicaId);
 
-        EpicrisisJob guardado = jobRepository.save(job);
-
-        // 4. Iniciar procesamiento asíncrono
+        // 4. Iniciar procesamiento asíncrono tras el commit
         asyncService.generarEpicrisisAsync(
                 guardado.getId(),
                 request.embarazoId(),
@@ -81,6 +82,16 @@ public class EpicrisisService {
         );
 
         return toJobResponse(guardado);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public EpicrisisJob crearJobTransaccional(UUID embarazoId, UUID medicoId, UUID clinicaId) {
+        EpicrisisJob job = new EpicrisisJob();
+        job.setEmbarazoId(embarazoId);
+        job.setMedicoId(medicoId);
+        job.setClinicaId(clinicaId);
+        job.setEstado(EstadoJob.PROCESANDO);
+        return jobRepository.save(job);
     }
 
     @Transactional(readOnly = true)

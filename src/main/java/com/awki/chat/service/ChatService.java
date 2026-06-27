@@ -63,7 +63,8 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
 
         // 3. Validar que pertenezca a la paciente autenticada
-        if (!embarazo.getPacienteId().equals(usuario.id())) {
+        UUID pacienteId = authService.getPacienteIdByUsuarioId(usuario.id());
+        if (!embarazo.getPacienteId().equals(pacienteId)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
         }
 
@@ -156,7 +157,8 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
 
         // Validar dueño del embarazo
-        if (!embarazo.getPacienteId().equals(usuario.id())) {
+        UUID pacienteIdHistorial = authService.getPacienteIdByUsuarioId(usuario.id());
+        if (!embarazo.getPacienteId().equals(pacienteIdHistorial)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
         }
 
@@ -185,10 +187,18 @@ public class ChatService {
         Embarazo embarazo = embarazoRepository.findById(embarazoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
 
-        // Validar multi-tenant
-        UUID pacienteClinicaId = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
-        if (!pacienteClinicaId.equals(usuario.clinicaId())) {
-            throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a los datos de esta paciente");
+        // Validar multi-tenant: si la paciente pertenece a una clínica, debe coincidir.
+        // Si es standalone (sin clínica), solo el médico asignado al embarazo puede acceder.
+        var pacienteClinicaIdOpt = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
+        if (pacienteClinicaIdOpt.isPresent()) {
+            if (!pacienteClinicaIdOpt.get().equals(usuario.clinicaId())) {
+                throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a los datos de esta paciente");
+            }
+        } else if ("MEDICO".equals(usuario.rol())) {
+            UUID medicoId = authService.getMedicoIdByUsuarioId(usuario.id());
+            if (!medicoId.equals(embarazo.getMedicoId())) {
+                throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a los datos de esta paciente");
+            }
         }
 
         // Buscar resumen existente
@@ -235,6 +245,7 @@ public class ChatService {
         nuevoResumen.setContenidoResumen(contenidoResumen);
         nuevoResumen.setGeneradoPorModelo(modelo);
         nuevoResumen.setUpdatedAt(LocalDateTime.now());
+        nuevoResumen.setNewEntity(true);
         nuevoResumen = resumenClinicoRepository.save(nuevoResumen);
 
         return new ResumenClinicoResponse(
@@ -254,9 +265,9 @@ public class ChatService {
         Embarazo embarazo = embarazoRepository.findById(embarazoId)
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
 
-        // Validar multi-tenant
-        UUID pacienteClinicaId = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
-        if (!pacienteClinicaId.equals(usuario.clinicaId())) {
+        // Validar multi-tenant: si la paciente pertenece a una clínica, debe coincidir.
+        var pacienteClinicaIdOpt2 = authService.getClinicaIdByPacienteId(embarazo.getPacienteId());
+        if (pacienteClinicaIdOpt2.isPresent() && !pacienteClinicaIdOpt2.get().equals(usuario.clinicaId())) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a los datos de esta paciente");
         }
 

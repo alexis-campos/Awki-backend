@@ -85,6 +85,7 @@ public class ChatAsyncService {
                         ResumenClinico r = new ResumenClinico();
                         r.setEmbarazoId(embarazoId);
                         r.setEmbarazo(embarazo);
+                        r.setNewEntity(true);
                         return r;
                     });
 

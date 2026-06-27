@@ -83,6 +83,7 @@ class ChatServiceTest {
             String val = invocation.getArgument(0);
             return val != null ? val.toLowerCase().trim() : "";
         });
+        lenient().when(authService.getPacienteIdByUsuarioId(patientId)).thenReturn(patientId);
     }
 
     @Test
@@ -193,7 +194,7 @@ class ChatServiceTest {
         resumen.setGeneradoPorModelo("Gemini API");
 
         when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
-        when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(clinicaId);
+        when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(Optional.of(clinicaId));
         when(resumenClinicoRepository.findById(pregnancyId)).thenReturn(Optional.of(resumen));
 
         ResumenClinicoResponse response = chatService.obtenerResumenClinico(pregnancyId, usuario);
@@ -207,7 +208,7 @@ class ChatServiceTest {
         UsuarioAutenticado usuario = new UsuarioAutenticado(UUID.randomUUID(), "MEDICO", UUID.randomUUID()); // Clínica distinta
 
         when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
-        when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(clinicaId);
+        when(authService.getClinicaIdByPacienteId(patientId)).thenReturn(Optional.of(clinicaId));
 
         assertThrows(BusinessRuleException.class, () ->
                 chatService.obtenerResumenClinico(pregnancyId, usuario)
