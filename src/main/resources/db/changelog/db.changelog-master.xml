@@ -9,10 +9,12 @@
     <include file="classpath:db/changelog/modulos/01_auth.sql"/>
     <include file="classpath:db/changelog/modulos/10_clinica.sql"/>
     <include file="classpath:db/changelog/modulos/03_embarazo.sql"/>
+    <include file="classpath:db/changelog/modulos/04_control.sql"/>
     <include file="classpath:db/changelog/modulos/06_riesgo.sql"/>
     <include file="classpath:db/changelog/modulos/02_vinculacion.sql"/>
     <include file="classpath:db/changelog/modulos/05_chat.sql"/>
     <include file="classpath:db/changelog/modulos/07_alertas.sql"/>
     <include file="classpath:db/changelog/modulos/09_epicrisis.sql"/>
+    <include file="classpath:db/changelog/modulos/08_documento.sql"/>
 
 </databaseChangeLog>
