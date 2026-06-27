@@ -24,7 +24,7 @@ management:
       show-details: when-authorized
 
 cors:
-  allowed-origins: http://localhost:5173
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 springdoc:
   swagger-ui:
@@ -37,7 +37,7 @@ gemini:
   api-url: https://generativelanguage.googleapis.com
   model: gemini-2.5-flash-lite
   timeout-seconds: 8
-  mock-enabled: true
+  mock-enabled: ${GEMINI_MOCK_ENABLED:true}
 
 notifications:
   mock-enabled: ${NOTIFICATIONS_MOCK_ENABLED:true}

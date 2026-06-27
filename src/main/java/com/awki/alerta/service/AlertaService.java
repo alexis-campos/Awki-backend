@@ -216,6 +216,42 @@ public class AlertaService {
                 });
     }
 
+    @Transactional
+    public void crearAlertaRetroactivaDesdeSync(CrearAlertaInternaRequest request, LocalDateTime fechaRetroactiva) {
+        log.info("[AlertaService] Creando alerta retroactiva. Embarazo: {} - Nivel: {}", request.embarazoId(), request.nivelUrgencia());
+
+        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
+                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+
+        Paciente paciente = pacienteRepository.findById(embarazo.getPacienteId())
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente", embarazo.getPacienteId().toString()));
+
+        Medico medico = null;
+        if (embarazo.getMedicoId() != null) {
+            medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
+        }
+
+        UUID clinicaId = paciente.getUsuario().getClinicaId();
+        Clinica clinica = clinicaRepository.findById(clinicaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+
+        Alerta alerta = new Alerta();
+        alerta.setEmbarazo(embarazo);
+        alerta.setPaciente(paciente);
+        alerta.setMedico(medico);
+        alerta.setClinica(clinica);
+        alerta.setTipoAlerta(request.tipoAlerta());
+        alerta.setNivelUrgencia(request.nivelUrgencia());
+        alerta.setDescripcion(request.descripcion());
+        alerta.setSintomasDisparadores(request.sintomasDisparadores());
+        alerta.setOrigen(request.origen());
+        alerta.setEstadoEntrega(EstadoEntrega.PENDIENTE);
+        alerta.setAlertaRetroactiva(true);
+        alerta.setFechaRetroactiva(fechaRetroactiva);
+
+        alertaRepository.save(alerta);
+    }
+
     private AlertaResponse toResponse(Alerta alerta) {
         String nombrePaciente = "Sistema";
         if (alerta.getPaciente() != null) {

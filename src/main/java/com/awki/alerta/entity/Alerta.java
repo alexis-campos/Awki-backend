@@ -92,4 +92,10 @@ public class Alerta extends BaseEntity {
 
     @Column(name = "mensaje_libre", length = 500)
     private String mensajeLibre;
+
+    @Column(name = "alerta_retroactiva", nullable = false)
+    private boolean alertaRetroactiva = false;
+
+    @Column(name = "fecha_retroactiva")
+    private LocalDateTime fechaRetroactiva;
 }

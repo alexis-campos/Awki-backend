@@ -4,5 +4,6 @@ public enum OrigenAlerta {
     SOS,
     CHAT,
     CONTROL,
-    SISTEMA
+    SISTEMA,
+    SYNC_OFFLINE
 }

@@ -16,5 +16,6 @@
     <include file="classpath:db/changelog/modulos/07_alertas.sql"/>
     <include file="classpath:db/changelog/modulos/09_epicrisis.sql"/>
     <include file="classpath:db/changelog/modulos/08_documento.sql"/>
+    <include file="classpath:db/changelog/modulos/12_sync.sql"/>
 
 </databaseChangeLog>

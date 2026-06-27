@@ -320,6 +320,24 @@ public class ChatService {
         return "Ahora no pude conectarme con la IA, pero tu consulta fue registrada. Puedes intentar nuevamente en unos momentos. Si tienes dolor intenso, sangrado, fiebre alta o algún síntoma preocupante, comunícate con tu médico.";
     }
 
+    @Transactional
+    public MensajeChat guardarMensajeOffline(UUID embarazoId, String contenido, LocalDateTime offlineTimestamp, String deviceId) {
+        Embarazo embarazo = embarazoRepository.findById(embarazoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+
+        boolean alarmaProbable = detectarAlarmaProbable(contenido);
+        MensajeChat mensaje = new MensajeChat();
+        mensaje.setEmbarazo(embarazo);
+        mensaje.setRol(RolMensajeChat.PACIENTE);
+        mensaje.setContenido(contenido.trim());
+        mensaje.setAlarmaProbable(alarmaProbable);
+        mensaje.setDesdeCache(false);
+        mensaje.setFallbackUsado(false);
+        mensaje.setDeviceId(deviceId);
+        mensaje.setOfflineTimestamp(offlineTimestamp);
+        return mensajeChatRepository.save(mensaje);
+    }
+
     private String generarResumenLocalBasico(List<MensajeChat> mensajes) {
         long mensajesPaciente = mensajes.stream().filter(m -> "PACIENTE".equals(m.getRol().name())).count();
         long mensajesConAlarma = mensajes.stream().filter(MensajeChat::isAlarmaProbable).count();

@@ -1,13 +1,13 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/awki_db
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/awki_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   jpa:
     show-sql: true
     properties:
@@ -15,11 +15,11 @@ spring:
         format_sql: true
 
 jwt:
-  secret: awki-dev-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm-padding
-  expiration: 86400000
+  secret: ${JWT_SECRET:awki-dev-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm-padding}
+  expiration: ${JWT_EXPIRATION:86400000}
 
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 logging:
   level:
@@ -31,12 +31,12 @@ gemini:
   api-url: https://generativelanguage.googleapis.com
   model: gemini-2.5-flash-lite
   timeout-seconds: 8
-  mock-enabled: true
+  mock-enabled: ${GEMINI_MOCK_ENABLED:true}
 
 notifications:
-  mock-enabled: true
+  mock-enabled: ${NOTIFICATIONS_MOCK_ENABLED:true}
 
 epicrisis:
   storage:
-    mode: local
-    local-path: uploads/epicrisis
+    mode: ${EPICRISIS_STORAGE_MODE:local}
+    local-path: ${EPICRISIS_STORAGE_PATH:uploads/epicrisis}

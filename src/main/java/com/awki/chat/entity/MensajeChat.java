@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @Entity
@@ -31,4 +33,10 @@ public class MensajeChat extends BaseEntity {
 
     @Column(name = "fallback_usado", nullable = false)
     private boolean fallbackUsado = false;
+
+    @Column(name = "device_id", length = 255)
+    private String deviceId;
+
+    @Column(name = "offline_timestamp")
+    private LocalDateTime offlineTimestamp;
 }
