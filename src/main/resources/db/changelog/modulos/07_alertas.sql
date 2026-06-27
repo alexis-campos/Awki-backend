@@ -55,3 +55,7 @@ CREATE INDEX idx_alertas_clinica_id  ON alertas(clinica_id);
 CREATE INDEX idx_alertas_estado_entrega ON alertas(estado_entrega);
 CREATE INDEX idx_contactos_emergencia_paciente_id ON contactos_emergencia(paciente_id);
 CREATE INDEX idx_dispositivos_medico_medico_id ON dispositivos_medico(medico_id);
+
+--changeset awki:07_alertas_fix_dispositivos_medico
+ALTER TABLE dispositivos_medico
+    ADD COLUMN created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW();
