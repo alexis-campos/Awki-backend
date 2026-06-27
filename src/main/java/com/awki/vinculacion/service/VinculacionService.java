@@ -17,6 +17,8 @@ import com.awki.vinculacion.entity.VinculoMedicoPaciente;
 import com.awki.vinculacion.repository.MedicoVinculacionRepository;
 import com.awki.vinculacion.repository.PacienteVinculacionRepository;
 import com.awki.vinculacion.repository.VinculoRepository;
+import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.common.enums.EstadoEmbarazo;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,7 @@ public class VinculacionService {
     private final UsuarioRepository usuarioRepository;
     private final MedicoVinculacionRepository medicoRepository;
     private final PacienteVinculacionRepository pacienteRepository;
+    private final EmbarazoRepository embarazoRepository;
     private final StringRedisTemplate stringRedisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -188,6 +191,13 @@ public class VinculacionService {
             usuarioRepository.save(paciente.getUsuario());
         }
         pacienteRepository.save(paciente);
+
+        // Vincular el embarazo activo de la paciente con el médico
+        embarazoRepository.findByPacienteIdAndEstado(paciente.getId(), EstadoEmbarazo.ACTIVO)
+                .ifPresent(emb -> {
+                    emb.setMedicoId(medico.getId());
+                    embarazoRepository.save(emb);
+                });
 
         return vinculoRepository.save(vinculo);
     }
