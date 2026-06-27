@@ -67,6 +67,12 @@ public class AlertaService {
         }
 
         UUID clinicaId = paciente.getUsuario().getClinicaId();
+        if (clinicaId == null && medico != null) {
+            clinicaId = medico.getClinicaId();
+        }
+        if (clinicaId == null) {
+            throw new BusinessRuleException("CLINIC_REQUIRED", "No se pudo determinar la clínica para la alerta");
+        }
         Clinica clinica = clinicaRepository.findById(clinicaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
 
@@ -122,6 +128,12 @@ public class AlertaService {
         }
 
         UUID clinicaId = paciente.getUsuario().getClinicaId();
+        if (clinicaId == null && medico != null) {
+            clinicaId = medico.getClinicaId();
+        }
+        if (clinicaId == null) {
+            throw new BusinessRuleException("CLINIC_REQUIRED", "No se pudo determinar la clínica para la alerta");
+        }
         Clinica clinica = clinicaRepository.findById(clinicaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
 

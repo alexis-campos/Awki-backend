@@ -183,6 +183,10 @@ public class VinculacionService {
         vinculo.setVinculadoAt(LocalDateTime.now());
 
         paciente.setModoUso(ModoUso.VINCULADA);
+        if (paciente.getUsuario() != null) {
+            paciente.getUsuario().setClinicaId(medico.getClinicaId());
+            usuarioRepository.save(paciente.getUsuario());
+        }
         pacienteRepository.save(paciente);
 
         return vinculoRepository.save(vinculo);
