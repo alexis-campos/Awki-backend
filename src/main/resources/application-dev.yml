@@ -35,3 +35,8 @@ gemini:
 
 notifications:
   mock-enabled: true
+
+epicrisis:
+  storage:
+    mode: local
+    local-path: uploads/epicrisis

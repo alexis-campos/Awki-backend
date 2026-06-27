@@ -57,3 +57,8 @@ notifications:
     credentials-path: ${FCM_CREDENTIALS_PATH:}
     timeout-seconds: ${FCM_TIMEOUT_SECONDS:10}
 
+epicrisis:
+  storage:
+    mode: ${EPICRISIS_STORAGE_MODE:local}
+    local-path: ${EPICRISIS_STORAGE_PATH:uploads/epicrisis}
+

@@ -28,6 +28,10 @@ public class GeminiClient {
     }
 
     public Optional<String> generarContenido(String prompt) {
+        return generarContenido(prompt, 0.4, 500);
+    }
+
+    public Optional<String> generarContenido(String prompt, double temperature, int maxOutputTokens) {
         // Validación de modo real y clave mock/vacía
         boolean isMockKey = geminiProperties.getApiKey() == null 
                 || geminiProperties.getApiKey().isBlank() 
@@ -49,7 +53,7 @@ public class GeminiClient {
 
         try {
             // Construir request body
-            Map<String, Object> requestBody = construirRequestBody(prompt);
+            Map<String, Object> requestBody = construirRequestBody(prompt, temperature, maxOutputTokens);
 
             // POST /v1beta/models/{model}:generateContent
             String uri = "/v1beta/models/" + geminiProperties.getModel() + ":generateContent";
@@ -80,6 +84,10 @@ public class GeminiClient {
     }
 
     private Map<String, Object> construirRequestBody(String prompt) {
+        return construirRequestBody(prompt, 0.4, 500);
+    }
+
+    private Map<String, Object> construirRequestBody(String prompt, double temperature, int maxOutputTokens) {
         Map<String, Object> part = new HashMap<>();
         part.put("text", prompt);
 
@@ -88,8 +96,8 @@ public class GeminiClient {
         content.put("parts", Collections.singletonList(part));
 
         Map<String, Object> generationConfig = new HashMap<>();
-        generationConfig.put("temperature", 0.4);
-        generationConfig.put("maxOutputTokens", 500);
+        generationConfig.put("temperature", temperature);
+        generationConfig.put("maxOutputTokens", maxOutputTokens);
 
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", Collections.singletonList(content));
@@ -106,6 +114,14 @@ public class GeminiClient {
             return "Lo que mencionas puede ser un signo de alarma durante el embarazo. Por seguridad, contacta a tu médico o acude al centro de salud más cercano. Si sientes que es urgente, usa el botón SOS.";
         }
         
+        if (lower.contains("epicrisis") || lower.contains("derivación") || lower.contains("derivacion") || lower.contains("motivo_derivacion")) {
+            return "{\n" +
+                    "  \"resumen_ia\": \"Gestante en fase activa de labor que ingresa a sala de partos con motivo de derivación: Motivo de prueba. Se reporta un embarazo controlado adecuadamente sin anomalías detectadas en los últimos controles.\",\n" +
+                    "  \"sintesis_clinica\": \"Madre estable clínicamente, movimientos fetales normales, frecuencia fetal dentro del rango normal.\",\n" +
+                    "  \"conclusiones\": \"Derivación preventiva. Planificar atención estándar de parto.\"\n" +
+                    "}";
+        }
+
         if (lower.contains("resumen") || lower.contains("generar un resumen clínico breve")) {
             return "Resumen Clínico Simulado:\n- Paciente reporta controles normales.\n- Dudas sobre alimentación y suplementos.\n- No se reportan signos de alarma activos.";
         }

@@ -13,5 +13,6 @@
     <include file="classpath:db/changelog/modulos/02_vinculacion.sql"/>
     <include file="classpath:db/changelog/modulos/05_chat.sql"/>
     <include file="classpath:db/changelog/modulos/07_alertas.sql"/>
+    <include file="classpath:db/changelog/modulos/09_epicrisis.sql"/>
 
 </databaseChangeLog>

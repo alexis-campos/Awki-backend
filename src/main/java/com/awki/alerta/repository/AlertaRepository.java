@@ -18,4 +18,5 @@ public interface AlertaRepository extends JpaRepository<Alerta, UUID> {
     long countByMedico_IdAndVistaPorMedicoFalse(UUID medicoId);
     Optional<Alerta> findByIdAndMedico_Id(UUID id, UUID medicoId);
     List<Alerta> findByEstadoEntrega(EstadoEntrega estadoEntrega);
+    List<Alerta> findByEmbarazo_Id(UUID embarazoId);
 }
