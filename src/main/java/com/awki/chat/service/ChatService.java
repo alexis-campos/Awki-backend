@@ -278,7 +278,7 @@ public class ChatService {
         }
 
         // Obtener los últimos 50 mensajes
-        List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDesc(embarazoId);
+        List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDescIdDesc(embarazoId);
 
         // Llamar asíncronamente al servicio de asincronía
         chatAsyncService.regenerarResumenAsync(embarazoId, mensajes, resumenClinicoRepository, embarazo, geminiClient);
