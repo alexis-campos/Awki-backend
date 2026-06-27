@@ -60,4 +60,28 @@ public class DocumentoController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(documentoService.generarUrl(documentoId)));
     }
+
+    @GetMapping("/file/{*storageKey}")
+    public ResponseEntity<org.springframework.core.io.Resource> verArchivo(
+            @PathVariable String storageKey
+    ) {
+        try {
+            java.nio.file.Path filePath = java.nio.file.Paths.get("uploads").resolve(storageKey.startsWith("/") ? storageKey.substring(1) : storageKey);
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+
+            if (resource.exists() || resource.isReadable()) {
+                String contentType = java.nio.file.Files.probeContentType(filePath);
+                if (contentType == null) {
+                    contentType = "application/octet-stream";
+                }
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
