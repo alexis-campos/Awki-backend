@@ -9,7 +9,6 @@ import com.awki.chat.repository.ResumenClinicoRepository;
 import com.awki.embarazo.entity.Embarazo;
 import com.awki.embarazo.repository.EmbarazoRepository;
 import com.awki.exception.BusinessRuleException;
-import com.awki.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -101,10 +100,7 @@ class ChatServiceTest {
 
         when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
         when(geminiClient.generarContenido(anyString())).thenReturn(Optional.of("Signo de alarma detectado"));
-        when(mensajeChatRepository.save(any(MensajeChat.class))).thenAnswer(invocation -> {
-            MensajeChat m = invocation.getArgument(0);
-            return m;
-        });
+        when(mensajeChatRepository.save(any(MensajeChat.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Simular que normalizar funciona adecuadamente en test
         when(semanticCacheService.normalizar(anyString())).thenReturn("tengo sangrado");
@@ -159,7 +155,7 @@ class ChatServiceTest {
         Page<MensajeChat> page = new PageImpl<>(Collections.emptyList());
 
         when(embarazoRepository.findById(pregnancyId)).thenReturn(Optional.of(embarazo));
-        when(mensajeChatRepository.findByEmbarazoIdOrderByCreatedAtDesc(eq(pregnancyId), any(Pageable.class))).thenReturn(page);
+        when(mensajeChatRepository.findByEmbarazoIdOrderByCreatedAtDescIdDesc(eq(pregnancyId), any(Pageable.class))).thenReturn(page);
 
         Page<MensajeChatResponse> response = chatService.obtenerHistorial(pregnancyId, 0, 20, usuario);
         assertNotNull(response);
