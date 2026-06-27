@@ -11,6 +11,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.awki.alerta.dto.CrearAlertaInternaRequest;
+import com.awki.alerta.entity.NivelUrgencia;
+import com.awki.alerta.entity.OrigenAlerta;
+import com.awki.alerta.entity.TipoAlerta;
+import com.awki.alerta.service.AlertaService;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -25,6 +30,7 @@ public class MotorRiesgoService {
 
     private final EmbarazoService embarazoService;
     private final EvaluacionRiesgoRepository evaluacionRiesgoRepository;
+    private final AlertaService alertaService;
 
     public ResultadoRiesgo evaluarDesdeControl(UUID embarazoId, ControlPrenatal control) {
         EmbarazoResponse embarazo = embarazoService.obtenerEmbarazoPorId(embarazoId);
@@ -179,5 +185,26 @@ public class MotorRiesgoService {
         evaluacion.setGenerarAlerta(resultado.generarAlerta());
         evaluacion.setFuenteEvaluacion(fuente);
         evaluacionRiesgoRepository.save(evaluacion);
+
+        if (resultado.generarAlerta()) {
+            NivelUrgencia nivelUrgencia = resultado.nivel() == NivelRiesgo.ROJO ? NivelUrgencia.ROJO : NivelUrgencia.AMARILLO;
+            TipoAlerta tipoAlerta = fuente == FuenteEvaluacion.SOS ? TipoAlerta.SOS_MANUAL : TipoAlerta.RIESGO_ELEVADO_CONTROL;
+            OrigenAlerta origen = OrigenAlerta.CONTROL;
+            if (fuente == FuenteEvaluacion.SINTOMAS) {
+                origen = OrigenAlerta.CHAT;
+            } else if (fuente == FuenteEvaluacion.SOS) {
+                origen = OrigenAlerta.SOS;
+            }
+            
+            CrearAlertaInternaRequest req = new CrearAlertaInternaRequest(
+                    embarazoId,
+                    tipoAlerta,
+                    nivelUrgencia,
+                    resultado.descripcionAlerta(),
+                    resultado.criteriosActivos(),
+                    origen
+            );
+            alertaService.crearAlertaDesdeRiesgo(req);
+        }
     }
 }

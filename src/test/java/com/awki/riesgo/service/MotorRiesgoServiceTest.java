@@ -32,6 +32,9 @@ class MotorRiesgoServiceTest {
     private EmbarazoService embarazoService;
 
     @Mock
+    private com.awki.alerta.service.AlertaService alertaService;
+
+    @Mock
     private EvaluacionRiesgoRepository evaluacionRiesgoRepository;
 
     @InjectMocks

@@ -38,3 +38,22 @@ gemini:
   model: gemini-2.5-flash-lite
   timeout-seconds: 8
   mock-enabled: true
+
+notifications:
+  mock-enabled: ${NOTIFICATIONS_MOCK_ENABLED:true}
+  twilio:
+    enabled: ${TWILIO_ENABLED:false}
+    account-sid: ${TWILIO_ACCOUNT_SID:mock-sid}
+    auth-token: ${TWILIO_AUTH_TOKEN:mock-token}
+    from-number: ${TWILIO_FROM_NUMBER:+000000000}
+    timeout-seconds: ${TWILIO_TIMEOUT_SECONDS:10}
+  whatsapp:
+    enabled: ${WHATSAPP_ENABLED:false}
+    token: ${WHATSAPP_BUSINESS_TOKEN:mock-token}
+    phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:mock-phone-id}
+    timeout-seconds: ${WHATSAPP_TIMEOUT_SECONDS:10}
+  firebase:
+    enabled: ${FCM_ENABLED:false}
+    credentials-path: ${FCM_CREDENTIALS_PATH:}
+    timeout-seconds: ${FCM_TIMEOUT_SECONDS:10}
+
