@@ -18,6 +18,7 @@ import com.awki.embarazo.entity.Embarazo;
 import com.awki.embarazo.repository.EmbarazoRepository;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.exception.TenantViolationException;
+import com.awki.exception.BusinessRuleException;
 import com.awki.auth.entity.Medico;
 import com.awki.auth.entity.Paciente;
 import com.awki.auth.repository.MedicoRepository;
@@ -66,15 +67,16 @@ public class AlertaService {
             medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
         }
 
-        UUID clinicaId = paciente.getUsuario().getClinicaId();
-        if (clinicaId == null && medico != null) {
-            clinicaId = medico.getClinicaId();
+        UUID tempClinicaId = paciente.getUsuario().getClinicaId();
+        if (tempClinicaId == null && medico != null) {
+            tempClinicaId = medico.getClinicaId();
         }
-        if (clinicaId == null) {
+        if (tempClinicaId == null) {
             throw new BusinessRuleException("CLINIC_REQUIRED", "No se pudo determinar la clínica para la alerta");
         }
-        Clinica clinica = clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        final UUID finalClinicaId = tempClinicaId;
+        Clinica clinica = clinicaRepository.findById(finalClinicaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinica", finalClinicaId.toString()));
 
         Alerta alerta = new Alerta();
         alerta.setEmbarazo(embarazo);
@@ -127,15 +129,16 @@ public class AlertaService {
             medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
         }
 
-        UUID clinicaId = paciente.getUsuario().getClinicaId();
-        if (clinicaId == null && medico != null) {
-            clinicaId = medico.getClinicaId();
+        UUID tempClinicaId = paciente.getUsuario().getClinicaId();
+        if (tempClinicaId == null && medico != null) {
+            tempClinicaId = medico.getClinicaId();
         }
-        if (clinicaId == null) {
+        if (tempClinicaId == null) {
             throw new BusinessRuleException("CLINIC_REQUIRED", "No se pudo determinar la clínica para la alerta");
         }
-        Clinica clinica = clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        final UUID finalClinicaId = tempClinicaId;
+        Clinica clinica = clinicaRepository.findById(finalClinicaId)
+                .orElseThrow(() -> new ResourceNotFoundException("Clinica", finalClinicaId.toString()));
 
         Alerta alerta = new Alerta();
         alerta.setEmbarazo(embarazo);
