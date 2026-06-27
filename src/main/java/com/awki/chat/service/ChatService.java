@@ -1,5 +1,7 @@
 package com.awki.chat.service;
 
+import com.awki.auth.entity.Paciente;
+import com.awki.auth.repository.PacienteRepository;
 import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.*;
 import com.awki.chat.entity.MensajeChat;
@@ -41,6 +43,7 @@ public class ChatService {
     private final GeminiClient geminiClient;
     private final SemanticCacheService semanticCacheService;
     private final ChatAsyncService chatAsyncService;
+    private final PacienteRepository pacienteRepository;
 
     private static final String GEMINI_SYSTEM_PROMPT = 
             "Eres Awki, un asistente prenatal de apoyo para gestantes. Responde en español claro, breve, cálido y responsable. "
@@ -63,7 +66,11 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
 
         // 3. Validar que pertenezca a la paciente autenticada
-        if (!embarazo.getPacienteId().equals(usuario.id())) {
+        UUID pacienteId = pacienteRepository.findByUsuario_Id(usuario.id())
+                .map(Paciente::getId)
+                .orElseThrow(() -> new BusinessRuleException("FORBIDDEN", "Paciente no encontrada"));
+
+        if (!embarazo.getPacienteId().equals(pacienteId)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
         }
 
@@ -156,7 +163,11 @@ public class ChatService {
                 .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
 
         // Validar dueño del embarazo
-        if (!embarazo.getPacienteId().equals(usuario.id())) {
+        UUID pacienteId = pacienteRepository.findByUsuario_Id(usuario.id())
+                .map(Paciente::getId)
+                .orElseThrow(() -> new BusinessRuleException("FORBIDDEN", "Paciente no encontrada"));
+
+        if (!embarazo.getPacienteId().equals(pacienteId)) {
             throw new BusinessRuleException("FORBIDDEN", "No tienes acceso a este embarazo");
         }
 
