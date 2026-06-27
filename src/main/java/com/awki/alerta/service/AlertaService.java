@@ -30,6 +30,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -99,8 +101,8 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones de forma asíncrona
-        notificationAsyncService.notificarAlertaAsync(guardada.getId());
+        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
+        notificarAlertaDespuesCommit(guardada.getId());
 
         int contactosNotificados = contactoRepository.findByPaciente_IdAndActivoTrue(paciente.getId()).size();
         boolean medicoNotificado = (medico != null);
@@ -154,8 +156,8 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones de forma asíncrona
-        notificationAsyncService.notificarAlertaAsync(guardada.getId());
+        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
+        notificarAlertaDespuesCommit(guardada.getId());
     }
 
     @Transactional(readOnly = true)
@@ -297,5 +299,18 @@ public class AlertaService {
                 alerta.getMensajeLibre(),
                 alerta.getCreatedAt()
         );
+    }
+
+    private void notificarAlertaDespuesCommit(UUID alertaId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notificationAsyncService.notificarAlertaAsync(alertaId);
+                }
+            });
+        } else {
+            notificationAsyncService.notificarAlertaAsync(alertaId);
+        }
     }
 }
