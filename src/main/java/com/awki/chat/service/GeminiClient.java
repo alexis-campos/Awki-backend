@@ -109,8 +109,16 @@ public class GeminiClient {
     private String generarRespuestaMock(String prompt) {
         String lower = prompt.toLowerCase();
         
-        // Simular respuestas del asistente basadas en el prompt
-        if (lower.contains("sangrado") || lower.contains("hemorragia") || lower.contains("perdida de liquido") || lower.contains("pérdida de líquido")) {
+        // Si el prompt es una consulta de paciente (contiene el system prompt), 
+        // aislamos su consulta para que las palabras clave de alarma del system prompt no disparen el mock erróneamente.
+        String consulta = lower;
+        int idx = lower.indexOf("consulta de la paciente:");
+        if (idx != -1) {
+            consulta = lower.substring(idx + "consulta de la paciente:".length()).trim();
+        }
+        
+        // Simular respuestas del asistente basadas en la consulta de la paciente
+        if (consulta.contains("sangrado") || consulta.contains("hemorragia") || consulta.contains("perdida de liquido") || consulta.contains("pérdida de líquido")) {
             return "Lo que mencionas puede ser un signo de alarma durante el embarazo. Por seguridad, contacta a tu médico o acude al centro de salud más cercano. Si sientes que es urgente, usa el botón SOS.";
         }
         

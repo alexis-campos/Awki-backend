@@ -11,6 +11,6 @@ import java.util.UUID;
 
 @Repository
 public interface MensajeChatRepository extends JpaRepository<MensajeChat, UUID> {
-    Page<MensajeChat> findByEmbarazoIdOrderByCreatedAtDesc(UUID embarazoId, Pageable pageable);
-    List<MensajeChat> findTop50ByEmbarazoIdOrderByCreatedAtDesc(UUID embarazoId);
+    Page<MensajeChat> findByEmbarazoIdOrderByCreatedAtDescIdDesc(UUID embarazoId, Pageable pageable);
+    List<MensajeChat> findTop50ByEmbarazoIdOrderByCreatedAtDescIdDesc(UUID embarazoId);
 }

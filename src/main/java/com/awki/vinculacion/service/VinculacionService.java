@@ -183,6 +183,10 @@ public class VinculacionService {
         vinculo.setVinculadoAt(LocalDateTime.now());
 
         paciente.setModoUso(ModoUso.VINCULADA);
+        if (paciente.getUsuario() != null) {
+            paciente.getUsuario().setClinicaId(medico.getClinicaId());
+            usuarioRepository.save(paciente.getUsuario());
+        }
         pacienteRepository.save(paciente);
 
         return vinculoRepository.save(vinculo);
@@ -271,6 +275,14 @@ public class VinculacionService {
     }
 
     private VinculoResponse toResponse(VinculoMedicoPaciente vinculo) {
+        int edad = 0;
+        if (vinculo.getPaciente().getFechaNacimiento() != null) {
+            edad = (int) java.time.temporal.ChronoUnit.YEARS.between(
+                    vinculo.getPaciente().getFechaNacimiento(),
+                    java.time.LocalDate.now()
+            );
+        }
+
         return new VinculoResponse(
                 vinculo.getId(),
                 vinculo.getMedico().getId(),
@@ -278,7 +290,13 @@ public class VinculacionService {
                 vinculo.getClinicaId(),
                 vinculo.getEstado(),
                 vinculo.getVinculadoAt(),
-                vinculo.getFinalizadoAt()
+                vinculo.getFinalizadoAt(),
+                vinculo.getPaciente().getNombres(),
+                vinculo.getPaciente().getApellidos(),
+                vinculo.getPaciente().getDni(),
+                edad,
+                vinculo.getMedico().getNombres(),
+                vinculo.getMedico().getApellidos()
         );
     }
 }

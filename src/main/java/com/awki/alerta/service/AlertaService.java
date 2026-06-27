@@ -18,6 +18,7 @@ import com.awki.embarazo.entity.Embarazo;
 import com.awki.embarazo.repository.EmbarazoRepository;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.exception.TenantViolationException;
+import com.awki.exception.BusinessRuleException;
 import com.awki.auth.entity.Medico;
 import com.awki.auth.entity.Paciente;
 import com.awki.auth.repository.MedicoRepository;
@@ -29,6 +30,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -89,8 +92,8 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones de forma asíncrona
-        notificationAsyncService.notificarAlertaAsync(guardada.getId());
+        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
+        notificarAlertaDespuesCommit(guardada.getId());
 
         int contactosNotificados = contactoRepository.findByPaciente_IdAndActivoTrue(paciente.getId()).size();
         boolean medicoNotificado = (medico != null);
@@ -135,8 +138,8 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones de forma asíncrona
-        notificationAsyncService.notificarAlertaAsync(guardada.getId());
+        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
+        notificarAlertaDespuesCommit(guardada.getId());
     }
 
     @Transactional(readOnly = true)
@@ -289,5 +292,18 @@ public class AlertaService {
         final UUID clinicaId = rawId;
         return clinicaRepository.findById(clinicaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+    }
+
+    private void notificarAlertaDespuesCommit(UUID alertaId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    notificationAsyncService.notificarAlertaAsync(alertaId);
+                }
+            });
+        } else {
+            notificationAsyncService.notificarAlertaAsync(alertaId);
+        }
     }
 }

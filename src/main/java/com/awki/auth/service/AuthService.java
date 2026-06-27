@@ -23,6 +23,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import com.awki.auth.dto.MedicoInfoDto;
+import com.awki.auth.dto.UsuarioInfoResponse;
+import java.util.Optional;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -209,5 +211,40 @@ public class AuthService {
         return medicoRepository.findByUsuario_Id(usuarioId)
                 .map(Medico::getId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medico para usuario", usuarioId.toString()));
+    }
+
+    public UsuarioInfoResponse getUsuarioInfo(String token) {
+        UUID userId = UUID.fromString(jwtService.extractUserId(token));
+        Usuario usuario = usuarioRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", userId.toString()));
+
+        UUID perfilId = null;
+        String nombres = "";
+        String apellidos = "";
+
+        if (usuario.getRol() == RolUsuario.PACIENTE) {
+            Optional<Paciente> pac = pacienteRepository.findByUsuario_Id(userId);
+            if (pac.isPresent()) {
+                perfilId = pac.get().getId();
+                nombres = pac.get().getNombres();
+                apellidos = pac.get().getApellidos();
+            }
+        } else if (usuario.getRol() == RolUsuario.MEDICO) {
+            Optional<Medico> med = medicoRepository.findByUsuario_Id(userId);
+            if (med.isPresent()) {
+                perfilId = med.get().getId();
+                nombres = med.get().getNombres();
+                apellidos = med.get().getApellidos();
+            }
+        }
+
+        return new UsuarioInfoResponse(
+                usuario.getId(),
+                usuario.getEmail(),
+                usuario.getRol(),
+                perfilId,
+                nombres,
+                apellidos
+        );
     }
 }

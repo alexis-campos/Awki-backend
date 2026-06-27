@@ -70,4 +70,12 @@ public class AuthController {
         authService.logout(authHeader.substring(7));
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<com.awki.auth.dto.UsuarioInfoResponse>> getMe(
+            @RequestHeader("Authorization") String authHeader
+    ) {
+        String token = authHeader.substring(7);
+        return ResponseEntity.ok(ApiResponse.ok(authService.getUsuarioInfo(token)));
+    }
 }

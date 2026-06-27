@@ -22,6 +22,8 @@ server:
   port: ${PORT:8080}
 
 logging:
+  file:
+    name: spring.log
   level:
     com.awki: DEBUG
     org.springframework.security: DEBUG

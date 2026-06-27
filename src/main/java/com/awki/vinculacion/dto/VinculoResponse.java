@@ -12,5 +12,11 @@ public record VinculoResponse(
         UUID clinicaId,
         EstadoVinculo estado,
         LocalDateTime vinculadoAt,
-        LocalDateTime finalizadoAt
+        LocalDateTime finalizadoAt,
+        String pacienteNombres,
+        String pacienteApellidos,
+        String pacienteDni,
+        Integer pacienteEdad,
+        String medicoNombres,
+        String medicoApellidos
 ) {}
