@@ -84,7 +84,10 @@ public class ChatService {
                 String respuestaCache = cacheOpt.get();
 
                 MensajeChat mensajePaciente = guardarMensaje(embarazo, RolMensajeChat.PACIENTE, contenido, false, true, false);
+                mensajeChatRepository.saveAndFlush(mensajePaciente);
+                try { Thread.sleep(20); } catch (InterruptedException ignored) {}
                 MensajeChat mensajeIa = guardarMensaje(embarazo, RolMensajeChat.IA, respuestaCache, false, true, false);
+                mensajeChatRepository.saveAndFlush(mensajeIa);
 
                 // Hilos asíncronos para motor de riesgo y alertas
                 chatAsyncService.analizarRiesgoAsync(embarazo.getId(), contenido, false);
@@ -129,9 +132,12 @@ public class ChatService {
             fallbackUsado = true;
         }
 
-        // 6. Guardar en base de datos
+        // 6. Guardar en base de datos de forma estrictamente secuencial
         MensajeChat mensajePaciente = guardarMensaje(embarazo, RolMensajeChat.PACIENTE, contenido, alarmaProbable, false, fallbackUsado);
+        mensajeChatRepository.saveAndFlush(mensajePaciente);
+        try { Thread.sleep(20); } catch (InterruptedException ignored) {}
         MensajeChat mensajeIa = guardarMensaje(embarazo, RolMensajeChat.IA, respuestaIa, alarmaProbable, false, fallbackUsado);
+        mensajeChatRepository.saveAndFlush(mensajeIa);
 
         // 7. Guardar en caché si es seguro
         if (!alarmaProbable && !fallbackUsado) {
@@ -172,7 +178,7 @@ public class ChatService {
         }
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<MensajeChat> mensajes = mensajeChatRepository.findByEmbarazoIdOrderByCreatedAtDesc(embarazoId, pageable);
+        Page<MensajeChat> mensajes = mensajeChatRepository.findByEmbarazoIdOrderByCreatedAtDescIdDesc(embarazoId, pageable);
 
         return mensajes.map(m -> new MensajeChatResponse(
                 m.getId(),
@@ -211,7 +217,7 @@ public class ChatService {
 
         // Si no existe, generarlo síncronamente de los últimos 50 mensajes por primera vez
         log.info("[ChatService] Generando primer resumen clínico para embarazo: {}", embarazoId);
-        List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDesc(embarazoId);
+        List<MensajeChat> mensajes = mensajeChatRepository.findTop50ByEmbarazoIdOrderByCreatedAtDescIdDesc(embarazoId);
         
         String contenidoResumen;
         String modelo = "Gemini API";
