@@ -271,6 +271,14 @@ public class VinculacionService {
     }
 
     private VinculoResponse toResponse(VinculoMedicoPaciente vinculo) {
+        int edad = 0;
+        if (vinculo.getPaciente().getFechaNacimiento() != null) {
+            edad = (int) java.time.temporal.ChronoUnit.YEARS.between(
+                    vinculo.getPaciente().getFechaNacimiento(),
+                    java.time.LocalDate.now()
+            );
+        }
+
         return new VinculoResponse(
                 vinculo.getId(),
                 vinculo.getMedico().getId(),
@@ -278,7 +286,13 @@ public class VinculacionService {
                 vinculo.getClinicaId(),
                 vinculo.getEstado(),
                 vinculo.getVinculadoAt(),
-                vinculo.getFinalizadoAt()
+                vinculo.getFinalizadoAt(),
+                vinculo.getPaciente().getNombres(),
+                vinculo.getPaciente().getApellidos(),
+                vinculo.getPaciente().getDni(),
+                edad,
+                vinculo.getMedico().getNombres(),
+                vinculo.getMedico().getApellidos()
         );
     }
 }
