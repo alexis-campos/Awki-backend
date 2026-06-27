@@ -106,6 +106,11 @@ public class ClinicaService {
         }
     }
 
+    public Clinica getClinicaEntityById(UUID id) {
+        return clinicaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Clínica", id.toString()));
+    }
+
     private ClinicaResponse mapToClinicaResponse(Clinica clinica) {
         return new ClinicaResponse(
                 clinica.getId(),

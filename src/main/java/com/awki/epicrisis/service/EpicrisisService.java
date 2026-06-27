@@ -2,11 +2,10 @@ package com.awki.epicrisis.service;
 
 import com.awki.auth.entity.Medico;
 import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.MedicoRepository;
-import com.awki.auth.repository.PacienteRepository;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.epicrisis.dto.EpicrisisGenerarRequest;
 import com.awki.epicrisis.dto.EpicrisisJobResponse;
 import com.awki.epicrisis.dto.EpicrisisResponse;
@@ -31,26 +30,20 @@ public class EpicrisisService {
 
     private final EpicrisisRepository epicrisisRepository;
     private final EpicrisisJobRepository jobRepository;
-    private final EmbarazoRepository embarazoRepository;
-    private final PacienteRepository pacienteRepository;
-    private final MedicoRepository medicoRepository;
+    private final AuthService authService;
+    private final EmbarazoService embarazoService;
     private final EpicrisisAsyncService asyncService;
     private final DocumentStorageService storageService;
 
     public EpicrisisJobResponse iniciarGeneracion(EpicrisisGenerarRequest request, UsuarioAutenticado user) {
         log.info("Solicitud de generación de epicrisis recibida del médico: {} para embarazo: {}", user.id(), request.embarazoId());
 
-        // 1. Obtener Médico y su Clínica
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
         UUID docClinicaId = medico.getUsuario().getClinicaId();
 
-        // 2. Obtener Embarazo y validar Clínica
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
-        Paciente paciente = pacienteRepository.findById(embarazo.getPacienteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", embarazo.getPacienteId().toString()));
+        Paciente paciente = authService.getPacienteEntityById(embarazo.getPacienteId());
 
         UUID pacienteClinicaId = paciente.getUsuario().getClinicaId();
 
@@ -58,7 +51,6 @@ public class EpicrisisService {
         if (pacienteClinicaId != null) {
             tieneAcceso = pacienteClinicaId.equals(docClinicaId);
         } else {
-            // Paciente standalone: solo el médico vinculado al embarazo puede generar epicrisis
             tieneAcceso = medico.getId().equals(embarazo.getMedicoId());
         }
 
@@ -68,10 +60,8 @@ public class EpicrisisService {
             throw new TenantViolationException("El embarazo no pertenece a la misma clínica que el médico");
         }
 
-        // 3. Persistir el Job en su propia transacción para garantizar commit antes del async
         EpicrisisJob guardado = crearJobTransaccional(request.embarazoId(), medico.getId(), docClinicaId);
 
-        // 4. Iniciar procesamiento asíncrono tras el commit
         asyncService.generarEpicrisisAsync(
                 guardado.getId(),
                 request.embarazoId(),
@@ -99,9 +89,7 @@ public class EpicrisisService {
         EpicrisisJob job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException("EpicrisisJob", jobId.toString()));
 
-        // Obtener clínica del médico autenticado
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
         UUID docClinicaId = medico.getUsuario().getClinicaId();
 
         if (docClinicaId == null || !docClinicaId.equals(job.getClinicaId())) {
@@ -118,9 +106,7 @@ public class EpicrisisService {
         Epicrisis epicrisis = epicrisisRepository.findById(epicrisisId)
                 .orElseThrow(() -> new ResourceNotFoundException("Epicrisis", epicrisisId.toString()));
 
-        // Obtener clínica del médico autenticado
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
         UUID docClinicaId = medico.getUsuario().getClinicaId();
 
         if (docClinicaId == null || !docClinicaId.equals(epicrisis.getClinicaId())) {
@@ -137,9 +123,7 @@ public class EpicrisisService {
         Epicrisis epicrisis = epicrisisRepository.findById(epicrisisId)
                 .orElseThrow(() -> new ResourceNotFoundException("Epicrisis", epicrisisId.toString()));
 
-        // Obtener clínica del médico autenticado
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
         UUID docClinicaId = medico.getUsuario().getClinicaId();
 
         if (docClinicaId == null || !docClinicaId.equals(epicrisis.getClinicaId())) {

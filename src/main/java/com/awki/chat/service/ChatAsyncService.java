@@ -25,6 +25,8 @@ public class ChatAsyncService {
 
     private final RiesgoChatPort riesgoChatPort;
     private final AlertaChatPort alertaChatPort;
+    private final ResumenClinicoRepository resumenClinicoRepository;
+    private final GeminiClient geminiClient;
 
     @Async("taskExecutor")
     public void analizarRiesgoAsync(UUID embarazoId, String contenido, boolean alarmaProbable) {
@@ -39,21 +41,14 @@ public class ChatAsyncService {
     }
 
     @Async("taskExecutor")
-    public void regenerarResumenAsync(
-            UUID embarazoId, 
-            List<MensajeChat> mensajes, 
-            ResumenClinicoRepository resumenRepository, 
-            Embarazo embarazo, 
-            GeminiClient geminiClient
-    ) {
+    public void regenerarResumenAsync(UUID embarazoId, List<MensajeChat> mensajes, Embarazo embarazo) {
         log.info("[ChatAsync] Regenerando resumen clínico asíncronamente para embarazo: {}", embarazoId);
-        
+
         if (mensajes.isEmpty()) {
             log.info("[ChatAsync] No hay mensajes de chat para generar un resumen para el embarazo: {}", embarazoId);
             return;
         }
 
-        // Construir la transcripción resumida para el prompt
         String transcripcion = mensajes.stream()
                 .map(m -> m.getRol().name() + ": " + m.getContenido())
                 .collect(Collectors.joining("\n"));
@@ -78,9 +73,8 @@ public class ChatAsyncService {
             modeloGenerado = "Fallback Local";
         }
 
-        // Guardar o actualizar en base de datos
         try {
-            ResumenClinico resumen = resumenRepository.findById(embarazoId)
+            ResumenClinico resumen = resumenClinicoRepository.findById(embarazoId)
                     .orElseGet(() -> {
                         ResumenClinico r = new ResumenClinico();
                         r.setEmbarazoId(embarazoId);
@@ -92,7 +86,7 @@ public class ChatAsyncService {
             resumen.setContenidoResumen(contenidoResumen);
             resumen.setGeneradoPorModelo(modeloGenerado);
             resumen.setUpdatedAt(LocalDateTime.now());
-            resumenRepository.save(resumen);
+            resumenClinicoRepository.save(resumen);
 
             log.info("[ChatAsync] Resumen clínico guardado con éxito para embarazo: {}", embarazoId);
         } catch (Exception e) {

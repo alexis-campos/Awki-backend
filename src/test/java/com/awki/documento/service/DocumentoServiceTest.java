@@ -7,7 +7,7 @@ import com.awki.documento.repository.DocumentoRepository;
 import com.awki.documento.repository.MedicoDocumentoRepository;
 import com.awki.documento.repository.PacienteDocumentoRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ class DocumentoServiceTest {
     private DocumentoRepository documentoRepository;
 
     @Mock
-    private EmbarazoRepository embarazoRepository;
+    private EmbarazoService embarazoService;
 
     @Mock
     private PacienteDocumentoRepository pacienteRepository;
@@ -75,7 +75,7 @@ class DocumentoServiceTest {
                 .isEqualTo("DOCUMENT_FILE_TYPE_NOT_ALLOWED");
 
         verifyNoInteractions(documentoRepository);
-        verifyNoInteractions(embarazoRepository);
+        verifyNoInteractions(embarazoService);
     }
 
     @Test
@@ -97,7 +97,7 @@ class DocumentoServiceTest {
                 .isEqualTo("DOCUMENT_FILE_TOO_LARGE");
 
         verifyNoInteractions(documentoRepository);
-        verifyNoInteractions(embarazoRepository);
+        verifyNoInteractions(embarazoService);
     }
 
     @Test
@@ -122,7 +122,7 @@ class DocumentoServiceTest {
 
         autenticar(usuarioId, RolUsuario.PACIENTE.name());
 
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(pacienteRepository.findByUsuarioId(usuarioId)).thenReturn(Optional.of(paciente));
         when(storageService.subir(archivo, embarazoId)).thenReturn("documentos/key.pdf");
         when(documentoRepository.save(any())).thenAnswer(invocation -> {

@@ -68,7 +68,7 @@ public class EmbarazoController {
     @PreAuthorize("hasRole('MEDICO')")
     public ResponseEntity<ApiResponse<AntecedentesResponse>> actualizarAntecedentes(
             @PathVariable UUID embarazoId,
-            @RequestBody AntecedentesRequest request
+            @Valid @RequestBody AntecedentesRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(embarazoService.crearOActualizarAntecedentes(embarazoId, request)));
     }

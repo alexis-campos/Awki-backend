@@ -1,26 +1,24 @@
 package com.awki.epicrisis.service;
 
-import com.awki.alerta.repository.AlertaRepository;
 import com.awki.auth.entity.Medico;
 import com.awki.auth.entity.Paciente;
 import com.awki.auth.entity.Usuario;
-import com.awki.auth.repository.MedicoRepository;
-import com.awki.auth.repository.PacienteRepository;
+import com.awki.alerta.service.AlertaService;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
-import com.awki.chat.repository.ResumenClinicoRepository;
+import com.awki.chat.service.ChatService;
 import com.awki.embarazo.entity.AntecedentesClinicos;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.epicrisis.dto.EpicrisisGenerarRequest;
 import com.awki.epicrisis.dto.EpicrisisJobResponse;
-import com.awki.epicrisis.dto.EpicrisisResponse;
 import com.awki.epicrisis.entity.Epicrisis;
 import com.awki.epicrisis.entity.EpicrisisJob;
 import com.awki.epicrisis.entity.EstadoJob;
 import com.awki.epicrisis.repository.EpicrisisJobRepository;
 import com.awki.epicrisis.repository.EpicrisisRepository;
 import com.awki.exception.TenantViolationException;
-import com.awki.chat.service.GeminiClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,11 +44,9 @@ class EpicrisisServiceTest {
     @Mock
     private EpicrisisJobRepository jobRepository;
     @Mock
-    private EmbarazoRepository embarazoRepository;
+    private AuthService authService;
     @Mock
-    private PacienteRepository pacienteRepository;
-    @Mock
-    private MedicoRepository medicoRepository;
+    private EmbarazoService embarazoService;
     @Mock
     private EpicrisisAsyncService asyncService;
     @Mock
@@ -58,11 +54,9 @@ class EpicrisisServiceTest {
 
     // Dependencias para EpicrisisAsyncService
     @Mock
-    private AlertaRepository alertaRepository;
+    private AlertaService alertaService;
     @Mock
-    private ResumenClinicoRepository resumenClinicoRepository;
-    @Mock
-    private GeminiClient geminiClient;
+    private ChatService chatService;
 
     @InjectMocks
     private EpicrisisService epicrisisService;
@@ -74,7 +68,7 @@ class EpicrisisServiceTest {
     private UUID pacienteId;
     private UUID embarazoId;
     private UUID clinicaId;
-    
+
     private Medico medico;
     private Paciente paciente;
     private Embarazo embarazo;
@@ -115,16 +109,15 @@ class EpicrisisServiceTest {
 
         authUser = new UsuarioAutenticado(medicoUserId, "MEDICO", clinicaId);
 
-        // Instanciar EpicrisisAsyncService manualmente para probar su lógica
         testAsyncService = new EpicrisisAsyncService(
                 jobRepository,
                 epicrisisRepository,
-                embarazoRepository,
-                pacienteRepository,
-                alertaRepository,
-                resumenClinicoRepository,
-                geminiClient,
-                storageService
+                authService,
+                embarazoService,
+                alertaService,
+                chatService,
+                storageService,
+                new ObjectMapper()
         );
     }
 
@@ -132,9 +125,9 @@ class EpicrisisServiceTest {
     void testIniciarGeneracionExito() {
         EpicrisisGenerarRequest req = new EpicrisisGenerarRequest(embarazoId, "Derivación por parto", "Ninguna");
 
-        when(medicoRepository.findByUsuario_Id(medicoUserId)).thenReturn(Optional.of(medico));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
-        when(pacienteRepository.findById(pacienteId)).thenReturn(Optional.of(paciente));
+        when(authService.getMedicoEntityByUsuarioId(medicoUserId)).thenReturn(medico);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
+        when(authService.getPacienteEntityById(pacienteId)).thenReturn(paciente);
 
         EpicrisisJob mockJob = new EpicrisisJob();
         ReflectionTestUtils.setField(mockJob, "id", UUID.randomUUID());
@@ -156,12 +149,11 @@ class EpicrisisServiceTest {
     void testIniciarGeneracionEmbarazoAjenoLanzaException() {
         EpicrisisGenerarRequest req = new EpicrisisGenerarRequest(embarazoId, "Derivación por parto", "Ninguna");
 
-        // Cambiar clínica del paciente a una diferente
         pacienteUsuario.setClinicaId(UUID.randomUUID());
 
-        when(medicoRepository.findByUsuario_Id(medicoUserId)).thenReturn(Optional.of(medico));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
-        when(pacienteRepository.findById(pacienteId)).thenReturn(Optional.of(paciente));
+        when(authService.getMedicoEntityByUsuarioId(medicoUserId)).thenReturn(medico);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
+        when(authService.getPacienteEntityById(pacienteId)).thenReturn(paciente);
 
         assertThrows(TenantViolationException.class, () -> epicrisisService.iniciarGeneracion(req, authUser));
         verify(jobRepository, never()).save(any());
@@ -171,10 +163,10 @@ class EpicrisisServiceTest {
     void testObtenerEstadoJobAjenoLanzaException() {
         UUID jobId = UUID.randomUUID();
         EpicrisisJob job = new EpicrisisJob();
-        job.setClinicaId(UUID.randomUUID()); // Clínica diferente
+        job.setClinicaId(UUID.randomUUID());
 
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-        when(medicoRepository.findByUsuario_Id(medicoUserId)).thenReturn(Optional.of(medico));
+        when(authService.getMedicoEntityByUsuarioId(medicoUserId)).thenReturn(medico);
 
         assertThrows(TenantViolationException.class, () -> epicrisisService.obtenerEstadoJob(jobId, authUser));
     }
@@ -183,10 +175,10 @@ class EpicrisisServiceTest {
     void testDescargarPdfAjenoLanzaException() {
         UUID epicrisisId = UUID.randomUUID();
         Epicrisis epicrisis = new Epicrisis();
-        epicrisis.setClinicaId(UUID.randomUUID()); // Clínica diferente
+        epicrisis.setClinicaId(UUID.randomUUID());
 
         when(epicrisisRepository.findById(epicrisisId)).thenReturn(Optional.of(epicrisis));
-        when(medicoRepository.findByUsuario_Id(medicoUserId)).thenReturn(Optional.of(medico));
+        when(authService.getMedicoEntityByUsuarioId(medicoUserId)).thenReturn(medico);
 
         assertThrows(TenantViolationException.class, () -> epicrisisService.descargarPdf(epicrisisId, authUser));
     }
@@ -199,23 +191,18 @@ class EpicrisisServiceTest {
         job.setEstado(EstadoJob.PROCESANDO);
 
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
-        when(pacienteRepository.findById(pacienteId)).thenReturn(Optional.of(paciente));
-        when(alertaRepository.findByEmbarazo_Id(embarazoId)).thenReturn(new ArrayList<>());
-        when(resumenClinicoRepository.findById(embarazoId)).thenReturn(Optional.empty());
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
+        when(authService.getPacienteEntityById(pacienteId)).thenReturn(paciente);
+        when(alertaService.getAlertasFormatadasParaEpicrisis(embarazoId)).thenReturn("Sin alertas clínicas registradas.");
+        when(chatService.getContenidoResumen(embarazoId)).thenReturn(Optional.empty());
+        when(chatService.generarContenidoConGemini(any(), anyDouble(), anyInt())).thenReturn(Optional.empty());
 
-        // Simular falla de Gemini API
-        when(geminiClient.generarContenido(any(), anyDouble(), anyInt())).thenReturn(Optional.empty());
-
-        // Mock guardar documento
         when(storageService.guardarDocumento(any(), any())).thenReturn("mock_file.pdf");
 
-        // Mock guardar epicrisis
         Epicrisis mockEpicrisis = new Epicrisis();
         ReflectionTestUtils.setField(mockEpicrisis, "id", UUID.randomUUID());
         when(epicrisisRepository.save(any())).thenReturn(mockEpicrisis);
 
-        // Ejecutar método síncronamente para probar
         testAsyncService.generarEpicrisisAsync(jobId, embarazoId, medicoId, clinicaId, "Derivacion", "Obs");
 
         assertEquals(EstadoJob.COMPLETADO, job.getEstado());

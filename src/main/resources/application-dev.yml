@@ -31,7 +31,7 @@ logging:
 gemini:
   api-key: ${GEMINI_API_KEY:mock-key}
   api-url: https://generativelanguage.googleapis.com
-  model: gemini-2.5-flash-lite
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
   timeout-seconds: 8
   mock-enabled: ${GEMINI_MOCK_ENABLED:true}
 

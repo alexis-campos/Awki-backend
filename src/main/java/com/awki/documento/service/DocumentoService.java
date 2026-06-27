@@ -13,7 +13,7 @@ import com.awki.documento.repository.DocumentoRepository;
 import com.awki.documento.repository.MedicoDocumentoRepository;
 import com.awki.documento.repository.PacienteDocumentoRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import com.awki.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class DocumentoService {
     );
 
     private final DocumentoRepository documentoRepository;
-    private final EmbarazoRepository embarazoRepository;
+    private final EmbarazoService embarazoService;
     private final PacienteDocumentoRepository pacienteRepository;
     private final MedicoDocumentoRepository medicoRepository;
     private final DocumentoStorageService storageService;
@@ -49,8 +49,7 @@ public class DocumentoService {
     public DocumentoResponse subirDocumento(UUID embarazoId, TipoDocumento tipoDocumento, MultipartFile archivo) {
         validarArchivo(archivo);
 
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
         UsuarioActual usuarioActual = obtenerUsuarioActual();
         validarAccesoEmbarazo(embarazo, usuarioActual);
@@ -72,8 +71,7 @@ public class DocumentoService {
 
     @Transactional(readOnly = true)
     public Page<DocumentoResponse> listarDocumentos(UUID embarazoId, int page, int size) {
-        Embarazo embarazo = embarazoRepository.findById(embarazoId)
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", embarazoId.toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(embarazoId);
 
         validarAccesoEmbarazo(embarazo, obtenerUsuarioActual());
 

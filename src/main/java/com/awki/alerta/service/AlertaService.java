@@ -10,19 +10,17 @@ import com.awki.alerta.entity.TipoAlerta;
 import com.awki.alerta.repository.AlertaRepository;
 import com.awki.alerta.repository.ContactoEmergenciaRepository;
 import com.awki.alerta.repository.DispositivoMedicoRepository;
+import com.awki.auth.entity.Medico;
+import com.awki.auth.entity.Paciente;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
 import com.awki.clinica.entity.Clinica;
-import com.awki.clinica.repository.ClinicaRepository;
-import com.awki.common.enums.EstadoEmbarazo;
+import com.awki.clinica.service.ClinicaService;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.exception.TenantViolationException;
 import com.awki.exception.BusinessRuleException;
-import com.awki.auth.entity.Medico;
-import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.MedicoRepository;
-import com.awki.auth.repository.PacienteRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +32,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,21 +44,18 @@ public class AlertaService {
     private final AlertaRepository alertaRepository;
     private final ContactoEmergenciaRepository contactoRepository;
     private final DispositivoMedicoRepository dispositivoMedicoRepository;
-    private final PacienteRepository pacienteRepository;
-    private final MedicoRepository medicoRepository;
-    private final EmbarazoRepository embarazoRepository;
-    private final ClinicaRepository clinicaRepository;
+    private final AuthService authService;
+    private final EmbarazoService embarazoService;
+    private final ClinicaService clinicaService;
     private final NotificationAsyncService notificationAsyncService;
 
     @Transactional
     public SosResponse crearSos(SosRequest request, UsuarioAutenticado user) {
         log.info("Creando SOS manual para el embarazo: {} por el usuario: {}", request.embarazoId(), user.id());
 
-        Paciente paciente = pacienteRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", user.id().toString()));
+        Paciente paciente = authService.getPacienteEntityByUsuarioId(user.id());
 
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
         if (!embarazo.getPacienteId().equals(paciente.getId())) {
             throw new TenantViolationException("El embarazo no pertenece a la paciente autenticada");
@@ -66,7 +63,7 @@ public class AlertaService {
 
         Medico medico = null;
         if (embarazo.getMedicoId() != null) {
-            medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
+            medico = authService.getMedicoEntityById(embarazo.getMedicoId()).orElse(null);
         }
 
         Clinica clinica = resolverClinica(paciente, medico);
@@ -79,7 +76,7 @@ public class AlertaService {
         alerta.setTipoAlerta(TipoAlerta.SOS_MANUAL);
         alerta.setNivelUrgencia(NivelUrgencia.ROJO);
         alerta.setOrigen(OrigenAlerta.SOS);
-        
+
         String desc = "Botón de pánico SOS activado por la paciente";
         if (request.mensajeLibre() != null && !request.mensajeLibre().isBlank()) {
             desc = request.mensajeLibre();
@@ -92,7 +89,6 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
         notificarAlertaDespuesCommit(guardada.getId());
 
         int contactosNotificados = contactoRepository.findByPaciente_IdAndActivoTrue(paciente.getId()).size();
@@ -111,15 +107,13 @@ public class AlertaService {
     public void crearAlertaDesdeRiesgo(CrearAlertaInternaRequest request) {
         log.info("Creando alerta interna desde riesgo/chat. Embarazo: {} - Nivel: {}", request.embarazoId(), request.nivelUrgencia());
 
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
-        Paciente paciente = pacienteRepository.findById(embarazo.getPacienteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", embarazo.getPacienteId().toString()));
+        Paciente paciente = authService.getPacienteEntityById(embarazo.getPacienteId());
 
         Medico medico = null;
         if (embarazo.getMedicoId() != null) {
-            medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
+            medico = authService.getMedicoEntityById(embarazo.getMedicoId()).orElse(null);
         }
 
         Clinica clinica = resolverClinica(paciente, medico);
@@ -138,15 +132,13 @@ public class AlertaService {
 
         Alerta guardada = alertaRepository.save(alerta);
 
-        // Orquestar notificaciones después de que la transacción sea commiteada para evitar race condition
         notificarAlertaDespuesCommit(guardada.getId());
     }
 
     @Transactional(readOnly = true)
     public Page<AlertaResponse> listarAlertas(UsuarioAutenticado user, Pageable pageable) {
         if ("MEDICO".equalsIgnoreCase(user.rol())) {
-            Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                    .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+            Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
 
             Page<Alerta> alertas = alertaRepository.findByMedico_IdOrderByNivelUrgenciaDescCreatedAtDesc(medico.getId(), pageable);
             return alertas.map(this::toResponse);
@@ -167,8 +159,7 @@ public class AlertaService {
         if (!"MEDICO".equalsIgnoreCase(user.rol())) {
             throw new TenantViolationException("Rol no autorizado para contar alertas");
         }
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
 
         long count = alertaRepository.countByMedico_IdAndVistaPorMedicoFalse(medico.getId());
         return new CountNoLeidasResponse(count);
@@ -180,8 +171,7 @@ public class AlertaService {
             throw new TenantViolationException("Rol no autorizado para marcar alerta como leída");
         }
 
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
 
         Alerta alerta = alertaRepository.findById(alertaId)
                 .orElseThrow(() -> new ResourceNotFoundException("Alerta", alertaId.toString()));
@@ -201,8 +191,7 @@ public class AlertaService {
             throw new TenantViolationException("Solo los médicos pueden registrar tokens FCM");
         }
 
-        Medico medico = medicoRepository.findByUsuario_Id(user.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Medico", user.id().toString()));
+        Medico medico = authService.getMedicoEntityByUsuarioId(user.id());
 
         String token = request.fcmToken();
 
@@ -219,15 +208,13 @@ public class AlertaService {
     public void crearAlertaRetroactivaDesdeSync(CrearAlertaInternaRequest request, LocalDateTime fechaRetroactiva) {
         log.info("[AlertaService] Creando alerta retroactiva. Embarazo: {} - Nivel: {}", request.embarazoId(), request.nivelUrgencia());
 
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
-        Paciente paciente = pacienteRepository.findById(embarazo.getPacienteId())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", embarazo.getPacienteId().toString()));
+        Paciente paciente = authService.getPacienteEntityById(embarazo.getPacienteId());
 
         Medico medico = null;
         if (embarazo.getMedicoId() != null) {
-            medico = medicoRepository.findById(embarazo.getMedicoId()).orElse(null);
+            medico = authService.getMedicoEntityById(embarazo.getMedicoId()).orElse(null);
         }
 
         Clinica clinica = resolverClinica(paciente, medico);
@@ -247,6 +234,15 @@ public class AlertaService {
         alerta.setFechaRetroactiva(fechaRetroactiva);
 
         alertaRepository.save(alerta);
+    }
+
+    @Transactional(readOnly = true)
+    public String getAlertasFormatadasParaEpicrisis(UUID embarazoId) {
+        List<Alerta> alertas = alertaRepository.findByEmbarazo_Id(embarazoId);
+        return alertas.isEmpty() ? "Sin alertas clínicas registradas." :
+                alertas.stream()
+                        .map(a -> "- " + a.getTipoAlerta() + " (" + a.getNivelUrgencia() + "): " + a.getDescripcion())
+                        .collect(Collectors.joining("\n"));
     }
 
     private AlertaResponse toResponse(Alerta alerta) {
@@ -289,9 +285,7 @@ public class AlertaService {
         if (rawId == null) {
             throw new ResourceNotFoundException("Clinica", "no se encontró clínica asociada a la paciente ni al médico");
         }
-        final UUID clinicaId = rawId;
-        return clinicaRepository.findById(clinicaId)
-                .orElseThrow(() -> new ResourceNotFoundException("Clinica", clinicaId.toString()));
+        return clinicaService.getClinicaEntityById(rawId);
     }
 
     private void notificarAlertaDespuesCommit(UUID alertaId) {

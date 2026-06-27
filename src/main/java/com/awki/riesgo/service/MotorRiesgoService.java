@@ -40,7 +40,7 @@ public class MotorRiesgoService {
         return resultado;
     }
 
-    @Async
+    @Async("taskExecutor")
     public CompletableFuture<ResultadoRiesgo> evaluarDesdeSintomas(UUID embarazoId, List<SintomaDetectado> sintomas) {
         EmbarazoResponse embarazo = embarazoService.obtenerEmbarazoPorId(embarazoId);
         AntecedentesResponse antecedentes = embarazoService.obtenerAntecedentes(embarazoId);

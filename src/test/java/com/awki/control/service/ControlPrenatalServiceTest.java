@@ -8,7 +8,7 @@ import com.awki.control.dto.ControlPrenatalResponse;
 import com.awki.control.repository.ControlPrenatalRepository;
 import com.awki.control.repository.MedicoControlRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import com.awki.riesgo.dto.ResultadoRiesgo;
 import com.awki.riesgo.service.MotorRiesgoService;
@@ -40,7 +40,7 @@ class ControlPrenatalServiceTest {
     private ControlPrenatalRepository controlPrenatalRepository;
 
     @Mock
-    private EmbarazoRepository embarazoRepository;
+    private EmbarazoService embarazoService;
 
     @Mock
     private MedicoControlRepository medicoControlRepository;
@@ -80,7 +80,7 @@ class ControlPrenatalServiceTest {
 
         autenticar(medicoUsuarioId, "MEDICO");
 
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(medicoControlRepository.findByUsuarioId(medicoUsuarioId)).thenReturn(Optional.of(medico));
         when(controlPrenatalRepository.countByEmbarazo_Id(embarazoId)).thenReturn(0L);
         when(motorRiesgoService.evaluarDesdeControl(eq(embarazoId), any()))
@@ -110,7 +110,7 @@ class ControlPrenatalServiceTest {
         ReflectionTestUtils.setField(embarazo, "id", embarazoId);
         embarazo.setEstado(EstadoEmbarazo.FINALIZADO_PARTO);
 
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
 
         assertThatThrownBy(() -> controlPrenatalService.crearControl(requestValido(embarazoId)))
                 .isInstanceOf(BusinessRuleException.class)

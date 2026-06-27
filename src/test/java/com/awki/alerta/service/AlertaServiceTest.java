@@ -12,13 +12,12 @@ import com.awki.alerta.repository.DispositivoMedicoRepository;
 import com.awki.auth.entity.Medico;
 import com.awki.auth.entity.Paciente;
 import com.awki.auth.entity.Usuario;
-import com.awki.auth.repository.MedicoRepository;
-import com.awki.auth.repository.PacienteRepository;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
 import com.awki.clinica.entity.Clinica;
-import com.awki.clinica.repository.ClinicaRepository;
+import com.awki.clinica.service.ClinicaService;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.TenantViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,16 +48,13 @@ class AlertaServiceTest {
     private DispositivoMedicoRepository dispositivoMedicoRepository;
 
     @Mock
-    private PacienteRepository pacienteRepository;
+    private AuthService authService;
 
     @Mock
-    private MedicoRepository medicoRepository;
+    private EmbarazoService embarazoService;
 
     @Mock
-    private EmbarazoRepository embarazoRepository;
-
-    @Mock
-    private ClinicaRepository clinicaRepository;
+    private ClinicaService clinicaService;
 
     @Mock
     private NotificationAsyncService notificationAsyncService;
@@ -104,9 +99,9 @@ class AlertaServiceTest {
     void testCrearSosExito() {
         SosRequest req = new SosRequest(embarazoId, new BigDecimal("-12.046"), new BigDecimal("-77.042"), "Mensaje de pánico");
 
-        when(pacienteRepository.findByUsuario_Id(userId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
-        when(clinicaRepository.findById(clinicaId)).thenReturn(Optional.of(clinica));
+        when(authService.getPacienteEntityByUsuarioId(userId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
+        when(clinicaService.getClinicaEntityById(clinicaId)).thenReturn(clinica);
         when(contactoRepository.findByPaciente_IdAndActivoTrue(pacienteId)).thenReturn(new ArrayList<>());
 
         Alerta savedAlerta = new Alerta();
@@ -133,8 +128,8 @@ class AlertaServiceTest {
         UUID otroPacienteId = UUID.randomUUID();
         embarazo.setPacienteId(otroPacienteId); // Cambiar paciente dueño
 
-        when(pacienteRepository.findByUsuario_Id(userId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(authService.getPacienteEntityByUsuarioId(userId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
 
         assertThrows(TenantViolationException.class, () -> alertaService.crearSos(req, authUser));
         verify(alertaRepository, never()).save(any(Alerta.class));

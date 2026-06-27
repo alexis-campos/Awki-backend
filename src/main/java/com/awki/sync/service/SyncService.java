@@ -6,12 +6,12 @@ import com.awki.alerta.entity.OrigenAlerta;
 import com.awki.alerta.entity.TipoAlerta;
 import com.awki.alerta.service.AlertaService;
 import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.PacienteRepository;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
 import com.awki.chat.entity.MensajeChat;
 import com.awki.chat.service.ChatService;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.exception.TenantViolationException;
@@ -25,6 +25,7 @@ import com.awki.sync.repository.DispositivoSyncRepository;
 import com.awki.sync.repository.SyncItemProcesadoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +43,8 @@ public class SyncService {
 
     private final DispositivoSyncRepository dispositivoSyncRepository;
     private final SyncItemProcesadoRepository syncItemProcesadoRepository;
-    private final PacienteRepository pacienteRepository;
-    private final EmbarazoRepository embarazoRepository;
+    private final AuthService authService;
+    private final EmbarazoService embarazoService;
     private final ChatService chatService;
     private final AlertaService alertaService;
 
@@ -53,8 +54,7 @@ public class SyncService {
             throw new BusinessRuleException("FORBIDDEN", "Solo las pacientes pueden enviar batches offline");
         }
 
-        Paciente paciente = pacienteRepository.findByUsuario_Id(usuario.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", usuario.id().toString()));
+        Paciente paciente = authService.getPacienteEntityByUsuarioId(usuario.id());
 
         List<OfflineMensajeItem> itemsOrdenados = request.items().stream()
                 .sorted(Comparator.comparing(OfflineMensajeItem::offlineTimestamp))
@@ -82,8 +82,7 @@ public class SyncService {
                 continue;
             }
 
-            Embarazo embarazo = embarazoRepository.findById(item.embarazoId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Embarazo", item.embarazoId().toString()));
+            Embarazo embarazo = embarazoService.getEmbarazoEntityById(item.embarazoId());
 
             if (!embarazo.getPacienteId().equals(paciente.getId())) {
                 throw new TenantViolationException("El embarazo no pertenece a la paciente autenticada");
@@ -92,11 +91,18 @@ public class SyncService {
             MensajeChat mensaje = chatService.guardarMensajeOffline(
                     item.embarazoId(), item.contenido(), item.offlineTimestamp(), request.deviceId());
 
-            SyncItemProcesado sip = new SyncItemProcesado();
-            sip.setDeviceId(request.deviceId());
-            sip.setPacienteId(paciente.getId());
-            sip.setOfflineTimestamp(item.offlineTimestamp());
-            syncItemProcesadoRepository.save(sip);
+            try {
+                SyncItemProcesado sip = new SyncItemProcesado();
+                sip.setDeviceId(request.deviceId());
+                sip.setPacienteId(paciente.getId());
+                sip.setOfflineTimestamp(item.offlineTimestamp());
+                syncItemProcesadoRepository.save(sip);
+            } catch (DataIntegrityViolationException e) {
+                // Concurrencia: ya fue procesado por otra request simultánea — idempotente
+                log.debug("[Sync] Item ya registrado por concurrencia: deviceId={} ts={}", request.deviceId(), item.offlineTimestamp());
+                conflictos++;
+                continue;
+            }
 
             if (mensaje.isAlarmaProbable()) {
                 String descripcion = "Síntoma crítico detectado offline: " + truncar(item.contenido(), 200);
@@ -146,8 +152,7 @@ public class SyncService {
             throw new BusinessRuleException("FORBIDDEN", "Solo las pacientes pueden consultar el estado de sincronización");
         }
 
-        Paciente paciente = pacienteRepository.findByUsuario_Id(usuario.id())
-                .orElseThrow(() -> new ResourceNotFoundException("Paciente", usuario.id().toString()));
+        Paciente paciente = authService.getPacienteEntityByUsuarioId(usuario.id());
 
         LocalDateTime ultimaSincronizacion = dispositivoSyncRepository
                 .findByPacienteIdAndDeviceId(paciente.getId(), deviceId)

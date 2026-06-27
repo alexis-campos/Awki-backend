@@ -5,12 +5,12 @@ import com.awki.alerta.entity.OrigenAlerta;
 import com.awki.alerta.entity.TipoAlerta;
 import com.awki.alerta.service.AlertaService;
 import com.awki.auth.entity.Paciente;
-import com.awki.auth.repository.PacienteRepository;
+import com.awki.auth.service.AuthService;
 import com.awki.chat.dto.UsuarioAutenticado;
 import com.awki.chat.entity.MensajeChat;
 import com.awki.chat.service.ChatService;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.exception.TenantViolationException;
@@ -46,8 +46,8 @@ class SyncServiceTest {
 
     @Mock private DispositivoSyncRepository dispositivoSyncRepository;
     @Mock private SyncItemProcesadoRepository syncItemProcesadoRepository;
-    @Mock private PacienteRepository pacienteRepository;
-    @Mock private EmbarazoRepository embarazoRepository;
+    @Mock private AuthService authService;
+    @Mock private EmbarazoService embarazoService;
     @Mock private ChatService chatService;
     @Mock private AlertaService alertaService;
 
@@ -87,12 +87,12 @@ class SyncServiceTest {
         OfflineBatchRequest request = new OfflineBatchRequest(DEVICE_ID, List.of());
         assertThatThrownBy(() -> syncService.procesarBatch(request, usuarioMedico))
                 .isInstanceOf(BusinessRuleException.class);
-        verifyNoInteractions(pacienteRepository);
+        verifyNoInteractions(authService);
     }
 
     @Test
     void procesarBatch_itemsVaciosRetornaResumenCero() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
 
         OfflineBatchRequest request = new OfflineBatchRequest(DEVICE_ID, List.of());
         OfflineBatchResponse response = syncService.procesarBatch(request, usuarioPaciente);
@@ -106,7 +106,7 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_itemMasAntiguoDe30DiasEsDescartado() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
 
         LocalDateTime antiguo = LocalDateTime.now().minusDays(31);
         OfflineMensajeItem item = new OfflineMensajeItem(embarazoId, "consulta normal", antiguo);
@@ -121,7 +121,7 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_itemDuplicadoEsContadoComoConflicto() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
         LocalDateTime ts = LocalDateTime.now().minusHours(1);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 DEVICE_ID, pacienteId, ts)).thenReturn(true);
@@ -138,8 +138,8 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_itemValidoSinAlarmaSeProcesaSinAlerta() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
 
@@ -165,8 +165,8 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_itemConAlarmaCreaAlertaRetroactiva() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
 
@@ -200,8 +200,8 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_itemsOrdenadosPorTimestampAscendente() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
 
@@ -224,7 +224,6 @@ class SyncServiceTest {
 
         assertThat(response.procesados()).isEqualTo(2);
 
-        // El DispositivoSync debe actualizarse con el timestamp más reciente
         ArgumentCaptor<DispositivoSync> dsCaptor = ArgumentCaptor.forClass(DispositivoSync.class);
         verify(dispositivoSyncRepository).save(dsCaptor.capture());
         assertThat(dsCaptor.getValue().getUltimaSincronizacion()).isEqualTo(mas_tarde);
@@ -232,14 +231,14 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_embarazoDeOtroPacienteLanzaTenantViolation() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
 
         Embarazo embarazoAjeno = new Embarazo();
         ReflectionTestUtils.setField(embarazoAjeno, "id", embarazoId);
-        embarazoAjeno.setPacienteId(UUID.randomUUID()); // paciente diferente
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazoAjeno));
+        embarazoAjeno.setPacienteId(UUID.randomUUID());
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazoAjeno);
 
         LocalDateTime ts = LocalDateTime.now().minusMinutes(10);
         OfflineMensajeItem item = new OfflineMensajeItem(embarazoId, "mensaje", ts);
@@ -251,10 +250,11 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_embarazoNoEncontradoLanzaNotFound() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.empty());
+        when(embarazoService.getEmbarazoEntityById(embarazoId))
+                .thenThrow(new ResourceNotFoundException("Embarazo", embarazoId.toString()));
 
         LocalDateTime ts = LocalDateTime.now().minusMinutes(10);
         OfflineMensajeItem item = new OfflineMensajeItem(embarazoId, "mensaje", ts);
@@ -266,8 +266,8 @@ class SyncServiceTest {
 
     @Test
     void procesarBatch_actualizaDispositivoExistente() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
-        when(embarazoRepository.findById(embarazoId)).thenReturn(Optional.of(embarazo));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
+        when(embarazoService.getEmbarazoEntityById(embarazoId)).thenReturn(embarazo);
         when(syncItemProcesadoRepository.existsByDeviceIdAndPacienteIdAndOfflineTimestamp(
                 any(), any(), any())).thenReturn(false);
 
@@ -302,12 +302,12 @@ class SyncServiceTest {
     void obtenerEstado_fallaConRolNoPermitido() {
         assertThatThrownBy(() -> syncService.obtenerEstado(DEVICE_ID, usuarioMedico))
                 .isInstanceOf(BusinessRuleException.class);
-        verifyNoInteractions(pacienteRepository);
+        verifyNoInteractions(authService);
     }
 
     @Test
     void obtenerEstado_deviceSinRegistroRetornaNullTimestamp() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
         when(dispositivoSyncRepository.findByPacienteIdAndDeviceId(pacienteId, DEVICE_ID))
                 .thenReturn(Optional.empty());
 
@@ -319,7 +319,7 @@ class SyncServiceTest {
 
     @Test
     void obtenerEstado_deviceConRegistroRetornaTimestamp() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.of(paciente));
+        when(authService.getPacienteEntityByUsuarioId(usuarioId)).thenReturn(paciente);
 
         LocalDateTime ultimaSync = LocalDateTime.now().minusHours(5);
         DispositivoSync ds = new DispositivoSync();
@@ -337,7 +337,8 @@ class SyncServiceTest {
 
     @Test
     void obtenerEstado_pacienteNoEncontradoLanzaNotFound() {
-        when(pacienteRepository.findByUsuario_Id(usuarioId)).thenReturn(Optional.empty());
+        when(authService.getPacienteEntityByUsuarioId(usuarioId))
+                .thenThrow(new ResourceNotFoundException("Paciente para usuario", usuarioId.toString()));
 
         assertThatThrownBy(() -> syncService.obtenerEstado(DEVICE_ID, usuarioPaciente))
                 .isInstanceOf(ResourceNotFoundException.class);

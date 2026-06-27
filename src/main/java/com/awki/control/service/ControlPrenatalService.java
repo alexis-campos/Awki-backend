@@ -12,7 +12,7 @@ import com.awki.control.entity.ProteinuriaControl;
 import com.awki.control.repository.ControlPrenatalRepository;
 import com.awki.control.repository.MedicoControlRepository;
 import com.awki.embarazo.entity.Embarazo;
-import com.awki.embarazo.repository.EmbarazoRepository;
+import com.awki.embarazo.service.EmbarazoService;
 import com.awki.exception.BusinessRuleException;
 import com.awki.exception.ResourceNotFoundException;
 import com.awki.riesgo.dto.ResultadoRiesgo;
@@ -33,14 +33,13 @@ import java.util.UUID;
 public class ControlPrenatalService {
 
     private final ControlPrenatalRepository controlPrenatalRepository;
-    private final EmbarazoRepository embarazoRepository;
+    private final EmbarazoService embarazoService;
     private final MedicoControlRepository medicoControlRepository;
     private final MotorRiesgoService motorRiesgoService;
 
     @Transactional
     public ControlPrenatalResponse crearControl(ControlPrenatalRequest request) {
-        Embarazo embarazo = embarazoRepository.findById(request.embarazoId())
-                .orElseThrow(() -> new ResourceNotFoundException("Embarazo", request.embarazoId().toString()));
+        Embarazo embarazo = embarazoService.getEmbarazoEntityById(request.embarazoId());
 
         if (embarazo.getEstado() != EstadoEmbarazo.ACTIVO) {
             throw new BusinessRuleException(
@@ -105,9 +104,7 @@ public class ControlPrenatalService {
 
     @Transactional(readOnly = true)
     public List<ControlPrenatalResumenResponse> listarPorEmbarazo(UUID embarazoId) {
-        if (!embarazoRepository.existsById(embarazoId)) {
-            throw new ResourceNotFoundException("Embarazo", embarazoId.toString());
-        }
+        embarazoService.getEmbarazoEntityById(embarazoId); // valida existencia
 
         return controlPrenatalRepository.findByEmbarazo_IdOrderByFechaControlDesc(embarazoId)
                 .stream()
